@@ -7,7 +7,7 @@ from models import MLP, LogisticRegression
 from Worker import Worker
 from ByzantineWorkers.ByzantineWorkerWitch import ByzantineWorkerWitch
 from Aggregator import Aggregator
-from data import load_mnist, get_targeted_data
+from Data.data import load_mnist, get_targeted_data
 from config import config
 
 def set_seed(seed=42):
@@ -41,7 +41,7 @@ def main():
                                                                  test_size=config['test_size'], 
                                                                  batch_size=config['batch_size'], 
                                                                  test_batch_size=config['test_batch_size'], 
-                                                                 target_label=config['target_label'], 
+                                                                 target_label=config['source_label'], 
                                                                  targeted_data_size=config['targeted_data_size'])
 
     logging.info(f"Train loader size: {len(train_loader.dataset)}")
@@ -76,8 +76,8 @@ def main():
     byzantine_list = [ByzantineWorkerWitch(
         model, _loader, criterion,
         targeted_data=targeted_data_loader,
-        target_label=config['target_label'],
-        adversarial_label=config['adversarial_label'],
+        target_label=config['source_label'],
+        adversarial_label=config['target_label'],
         budget=math.ceil(config['batch_size'] * config['budget_ratio']), 
         controlled_subset_size=config['controlled_subset_size'], 
         steps=config['byzantine_steps'], 
@@ -87,7 +87,7 @@ def main():
     workers = honest_list + byzantine_list
     aggregator = Aggregator(model, workers, config['aggregation_method'])
 
-    aggregator.train(test_loader, config['target_label'], epochs=config['epochs'])
+    aggregator.train(test_loader, config['source_label'], epochs=config['epochs'])
 
 if __name__ == "__main__":
     main()

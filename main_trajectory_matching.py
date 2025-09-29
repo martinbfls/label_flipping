@@ -8,7 +8,7 @@ from models import MLP, LogisticRegression
 from Worker import Worker
 from ByzantineWorkers.ByzantineWorkerGlobalTrajectoryMatching import ByzantineWorkerGlobalTrajectoryMatching
 from Aggregator import Aggregator
-from data import load_mnist_trajectory_matching
+from Data.data_trajectory_matching import get_matching_datasets, get_n_classes, pick_poisoner, load_dataset
 from config import config
 
 def set_seed(seed=42):
@@ -38,16 +38,25 @@ def main():
     set_seed(config['seed'])
     set_round()
 
-    train_loader, test_loader, targeted_data_loader = load_mnist_trajectory_matching(train_size=config['train_size'], 
-                                                                 test_size=config['test_size'], 
-                                                                 batch_size=config['batch_size'], 
-                                                                 test_batch_size=config['test_batch_size'], 
-                                                                 target_label=config['target_label'], 
-                                                                 adversarial_label=config['adversarial_label'])
+    config['num_classes'] = get_n_classes(config['dataset'])
 
-    logging.info(f"Train loader size: {len(train_loader.dataset)}")
-    logging.info(f"Test loader size: {len(test_loader.dataset)}")
-    logging.info(f"Targeted data loader size: {len(targeted_data_loader.dataset)}")
+    poisoner = pick_poisoner(config['poisoner'],
+                             config['dataset'],
+                             config['target_label'])
+    
+    poison_train, _, test, poison_test, _ =\
+        get_matching_datasets(config['dataset'], poisoner, config['source_label'], train_pct=config['train_pct'])
+
+    clean_train = load_dataset(config['dataset'], train=True)
+    clean_test = load_dataset(config['dataset'], train=False)
+
+    poisoned_loader = torch.utils.data.DataLoader(poison_train, batch_size=config['batch_size'], shuffle=True)
+    train_loader = torch.utils.data.DataLoader(clean_train, batch_size=config['batch_size'], shuffle=True)
+    test_loader = torch.utils.data.DataLoader(clean_test, batch_size=config['batch_size'], shuffle=False)
+
+    logging.info(f"Train loader size: {len(clean_train)}")
+    logging.info(f"Test loader size: {len(clean_test)}")
+    logging.info(f"Poison data loader size: {len(poison_train)}")
 
     if config['model_type'] == 'MLP':
         model = MLP().to(config['device'])
@@ -77,7 +86,7 @@ def main():
 
     honest_list = [Worker(model, _loader, criterion) for _loader in honest_loaders]
     byzantine_list = [ByzantineWorkerGlobalTrajectoryMatching(
-        model, expert_model, _loader, targeted_data_loader, criterion,
+        model, expert_model, _loader, poisoned_loader, criterion,
         budget=math.ceil(config['batch_size'] * config['budget_ratio']), 
         controlled_subset_size=config['controlled_subset_size'], 
         steps=config['byzantine_steps'], 
@@ -87,7 +96,7 @@ def main():
 
     workers = honest_list + byzantine_list
     aggregator = Aggregator(model, workers, config['aggregation_method'])
-    aggregator.train(test_loader, config['target_label'], epochs=config['epochs'])
+    aggregator.train(test_loader, config['source_label'], epochs=config['epochs'])
 
 if __name__ == "__main__":
     main()

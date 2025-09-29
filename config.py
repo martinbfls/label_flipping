@@ -12,6 +12,10 @@ config = {
     'batch_size': 64,
     'test_batch_size': 1000,
     'num_classes': 10,
+
+    'dataset': 'cifar',
+    'train_pct': 1.0,  # percentage of the training set to use
+    'poisoner': '1xp', # '1xp', '2xp', '3xp', '1xs', '2xs', '1xl', '4xl'
     
     'model_type': 'LogisticRegression',  # 'MLP' or 'LogisticRegression'
     
@@ -26,7 +30,7 @@ config = {
     'byzantine_steps': 250,
     'byzantine_lr': 0.01,
     'target_label': 5,
-    'adversarial_label': 6,
+    'source_label': 3,
 
     'aggregation_method': 'mean',  # 'mean' or 'median'
     'num_honest_workers': 0,
