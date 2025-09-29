@@ -1,0 +1,34 @@
+import torch
+
+config = {
+    'seed': 42,
+    'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    'log_file': 'logs/training.log',
+    
+    'train_size': 10000,
+    'test_size': 1000,
+    'targeted_data_size': 1000,
+
+    'batch_size': 64,
+    'test_batch_size': 1000,
+    'num_classes': 10,
+    
+    'model_type': 'LogisticRegression',  # 'MLP' or 'LogisticRegression'
+    
+    'epochs': 100,
+    'rounds_per_epoch': 100,
+    
+    'random_restart': 1,  # number of random initializations for the byzantine attack
+    'optimizing_method': 'logits',  # 'logits' 
+    'flip_strategies': ["sim_variation"],
+    'budget_ratio': 1.0, #0.25
+    'controlled_subset_size': 1.0, #1.0
+    'byzantine_steps': 250,
+    'byzantine_lr': 0.01,
+    'target_label': 5,
+    'adversarial_label': 6,
+
+    'aggregation_method': 'mean',  # 'mean' or 'median'
+    'num_honest_workers': 0,
+    'num_byzantine_workers': 1,
+}
