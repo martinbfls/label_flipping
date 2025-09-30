@@ -60,4 +60,3 @@ data/
 experiments/
 results/
 *.json
-*.yml
