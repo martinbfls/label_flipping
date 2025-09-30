@@ -8,14 +8,16 @@ import logging
 from config import config
 
 class ByzantineWorker_(Worker):
-    def __init__(self, model, loader, criterion, budget=5,
-                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
+    def __init__(self, model, loader, criterion, scheduler, budget=5,
+                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10):
         super().__init__(model, loader, criterion)
         self.budget = budget
         self.controlled_subset_size = controlled_subset_size
         self.steps = steps
+        self.scheduler = scheduler
         self.lr = lr
         self.random_restart = random_restart
+        self.num_classes = num_classes
     
     def _optimize_logits(self):
         pass

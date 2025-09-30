@@ -110,6 +110,7 @@ TRANSFORM_TEST_XY = {
 }
 
 N_CLASSES = {
+    'mnist': 10,
     'cifar': 10,
     'cifar_100': 100,
     'tiny_imagenet': 200

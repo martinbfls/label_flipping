@@ -5,20 +5,20 @@ import random
 import math
 import logging
 import copy
-from config import config
+from utils.utils import setup_optimizer, setup_scheduler
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=config['log_file'],
-    filemode='w'
-)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     filename=config['log_file'],
+#     filemode='w'
+# )
 
 class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
-    def __init__(self, model, expert_model, loader, poisoned_loader, criterion, budget=5,
-                 controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
-        super().__init__(model, loader, criterion, budget,
-                         controlled_subset_size, steps, lr, random_restart)
+    def __init__(self, model, expert_model, loader, poisoned_loader, criterion, scheduler, budget=5,
+                 controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10):
+        super().__init__(model, loader, criterion, scheduler, budget,
+                         controlled_subset_size, steps, lr, random_restart, num_classes)
         self.poisoned_loader = poisoned_loader
         self.poisoned_iter = iter(self.poisoned_loader)
         self.expert_model = expert_model
@@ -71,9 +71,8 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         else:
             raise ValueError(f"Unknown loss type {loss_type}")
 
-    def _optimize_logits(self, controlled_inputs, controlled_targets):
+    def _optimize_logits(self, controlled_inputs, controlled_targets, num_classes):
         device = next(self.model.parameters()).device
-        num_classes = config['num_classes']
 
         best_probs = None
         best_new_labels = None
@@ -88,7 +87,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         for restart in range(self.random_restart):
             logits = torch.randn(len(controlled_targets), num_classes, device=device, requires_grad=True)
             optimizer_logits = torch.optim.Adam([logits], lr=self.lr)
-
+            scheduler = setup_scheduler(optimizer_logits, sched_type=self.scheduler, step_size=10, gamma=0.1) if self.scheduler else None
             for _ in range(self.steps):
                 soft_labels = F.softmax(logits, dim=1)
 
@@ -99,6 +98,10 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 optimizer_logits.zero_grad()
                 attack_loss_tensor.backward()
                 optimizer_logits.step()
+                
+                if scheduler is not None:
+                    scheduler.step()
+
                 with torch.no_grad():
                     logits.clamp_(-16.0, 16.0)
 
@@ -136,7 +139,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
     def find_optimal_attack(self, data, targets):
         controlled_inputs, controlled_targets, idx = self.get_controlled_batch()
 
-        probs, new_labels, controlled_targets = self._optimize_logits(controlled_inputs, controlled_targets)
+        probs, new_labels, controlled_targets = self._optimize_logits(controlled_inputs, controlled_targets, self.num_classes)
 
         score = self._score_candidates(probs, controlled_targets)
 
@@ -149,8 +152,6 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 if new_labels[j].item() != controlled_targets[j].item() and flips < self.budget:
                     attacked_targets[idx[j].item()] = new_labels[j]
                     flips += 1
-
-        logging.info(f"Performed {flips} label flips out of budget {self.budget}")
 
         return data, attacked_targets
 

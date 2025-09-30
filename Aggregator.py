@@ -1,14 +1,6 @@
 import torch
 import torch.optim as optim
 import logging
-from config import config
-
-logging.basicConfig(
-        level=logging.INFO, 
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        filename=config['log_file'],
-        filemode='w'
-    )
 
 def test(model, test_loader, target_label):
         model.eval()
@@ -34,10 +26,11 @@ def test(model, test_loader, target_label):
         return correct / len(test_loader.dataset), target_acc
 
 class Aggregator:
-    def __init__(self, model, workers, aggregation_method="mean"):
+    def __init__(self, model, workers, optimizer, scheduler, aggregation_method="mean"):
         self.model = model
         self.workers = workers
-        self.optimizer = optim.SGD(model.parameters(), lr=0.01)
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         self.aggregation_method = aggregation_method
 
     def aggregate_gradients(self, grads_list):
@@ -51,23 +44,28 @@ class Aggregator:
 
     def train_round(self):
         grads_list = [w.get_gradient() for w in self.workers]
-        #grads_list = [g for g in grads_list if g is not None]
-
         grads = self.aggregate_gradients(grads_list)
 
         with torch.no_grad():
             for p, g in zip(self.model.parameters(), grads):
-                p.grad = g
+                if p.grad is None:
+                    p.grad = torch.zeros_like(p.data)
+                p.grad.copy_(g)
             self.optimizer.step()
             self.optimizer.zero_grad()
+
+        if self.scheduler is not None:
+            self.scheduler.step()
+
         for w in self.workers:
             w.update_model(self.model)
 
-    def train(self, test_loader, target_label, epochs=10, results_logger=None, experiment_config=None):
+
+    def train(self, test_loader, target_label, epochs=10, round_per_epoch=100):
         results = []
         
         for epoch in range(epochs):
-            for step in range(config['rounds_per_epoch']):
+            for step in range(round_per_epoch):
                 self.train_round()
             
             acc, target_acc = test(self.model, test_loader, target_label)
@@ -80,8 +78,5 @@ class Aggregator:
                 'target_accuracy': target_acc
             }
             results.append(epoch_result)
-            
-            if results_logger and experiment_config:
-                results_logger.log_result(experiment_config, epoch + 1, acc, target_acc)
         
         return results

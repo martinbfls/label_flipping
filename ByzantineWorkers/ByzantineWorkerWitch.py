@@ -3,15 +3,14 @@ import torch
 import torch.nn.functional as F
 import random
 import math
-import logging
-from config import config
+from utils.utils import setup_optimizer, setup_scheduler
 
-logging.basicConfig(
-        level=logging.INFO, 
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        filename=config['log_file'],
-        filemode='w'
-    )
+# logging.basicConfig(
+#         level=logging.INFO, 
+#         format='%(asctime)s - %(levelname)s - %(message)s',
+#         filename=config['log_file'],
+#         filemode='w'
+#     )
 
 class ByzantineWorkerWitch(ByzantineWorker_):
     def __init__(self, model, loader, criterion, targeted_data, target_label, adversarial_label, 
@@ -39,6 +38,8 @@ class ByzantineWorkerWitch(ByzantineWorker_):
         for restart in range(self.random_restart):
             logits = torch.randn(len(controlled_targets), num_classes, device=device, requires_grad=True)
             optimizer_logits = torch.optim.Adam([logits], lr=self.lr)
+            scheduler = setup_scheduler(optimizer_logits, sched_type=self.scheduler, step_size=10, gamma=0.1) if self.scheduler else None
+
 
             for _ in range(self.steps):
                 pseudo_labels = F.softmax(logits, dim=1)
@@ -59,6 +60,10 @@ class ByzantineWorkerWitch(ByzantineWorker_):
                 optimizer_logits.zero_grad()
                 attack_loss.backward()
                 optimizer_logits.step()
+
+                if scheduler is not None:
+                    scheduler.step()
+
                 logits.data = torch.clamp(logits.data, -16.0, 16.0)
 
             with torch.no_grad():

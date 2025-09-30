@@ -1,0 +1,61 @@
+# ====================
+# Python compiled files
+# ====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ====================
+# Virtual environments
+# ====================
+.venv/
+venv/
+env/
+ENV/
+*.env
+
+# ====================
+# Logs and temporary files
+# ====================
+*.log
+*.tmp
+*.out
+*.csv
+*.h5
+*.ckpt
+*.pth
+
+# ====================
+# Jupyter / IPython
+# ====================
+.ipynb_checkpoints/
+
+# ====================
+# OS-specific files
+# ====================
+.DS_Store
+Thumbs.db
+
+# ====================
+# IDEs / editors
+# ====================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ====================
+# Large data files / caches
+# ====================
+data/
+*.zip
+*.tar
+*.tar.gz
+*.npz
+
+# ====================
+# Experiment outputs / checkpoints
+# ====================
+experiments/
+results/

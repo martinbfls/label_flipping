@@ -17,15 +17,15 @@ config = {
     'train_pct': 1.0,  # percentage of the training set to use
     'poisoner': '1xp', # '1xp', '2xp', '3xp', '1xs', '2xs', '1xl', '4xl'
     
-    'model_type': 'LogisticRegression',  # 'MLP' or 'LogisticRegression'
+    'model_type': 'CNN',  # 'MLP' or 'LogisticRegression'
     
-    'epochs': 100,
-    'rounds_per_epoch': 100,
+    'epochs': 200,
+    'rounds_per_epoch': 200,
     
     'random_restart': 1,  # number of random initializations for the byzantine attack
     'optimizing_method': 'logits',  # 'logits' 
     'flip_strategies': ["sim_variation"],
-    'budget_ratio': 1.0, #0.25
+    'budget_ratio': 0.25, #0.25
     'controlled_subset_size': 1.0, #1.0
     'byzantine_steps': 250,
     'byzantine_lr': 0.01,
