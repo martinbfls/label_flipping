@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import random
 import math
 import logging
-from config import config
 
 class ByzantineWorker_(Worker):
     def __init__(self, model, loader, criterion, scheduler, budget=5,

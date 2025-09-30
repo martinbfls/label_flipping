@@ -27,7 +27,7 @@ def set_round(args):
     num_rounds_per_epoch = math.ceil(num_sample_per_worker / args.batch_size)
     args.rounds_per_epoch = num_rounds_per_epoch
 
-def collate_fn_resnet(batch):
+def collate_fn_mnist(batch):
     return batch
 
 def collate_fn(batch):
@@ -42,9 +42,9 @@ def collate_fn(batch):
     targets = torch.tensor(targets)
     return imgs, targets
 
-def select_collate_fn(model_type):
-    if model_type in ['ResNet20', 'ResNet32', 'ResNet44', 'ResNet56', 'ResNet110', 'ResNet1202']:
-        return collate_fn_resnet
+def select_collate_fn(dataset):
+    if dataset.lower() in ['mnist']:
+          return collate_fn_mnist
     else:
         return collate_fn
 
@@ -69,7 +69,7 @@ def load_model(model_type, input_shape, num_classes):
         return LogisticRegression(input_shape=input_shape, num_classes=num_classes)
 
 def log_file(args):
-    return f"logs/{args.dataset}_{args.model_type}_agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}_batch-{args.batch_size}_epochs-{args.epochs}.log"
+    return f"logs/{args.dataset}_{args.model_type}_agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}.log"
 
 def setup_logger(log_file):
     logger = logging.getLogger()
@@ -87,9 +87,9 @@ def setup_logger(log_file):
     logger.addHandler(fh)
 
 def setup_optimizer(model, optim_type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0):
-    if optim_type == 'SGD':
+    if optim_type.lower() == 'sgd':
         return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
-    elif optim_type == 'Adam':
+    elif optim_type.lower() == 'adam':
         return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     else:
         raise ValueError(f"Unknown optimizer type {optim_type}")

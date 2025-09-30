@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math, copy, logging, argparse
 from utils.utils import dict_to_namespace, set_seed, set_round, select_collate_fn, load_model, \
-                        setup_logger, setup_optimizer, setup_scheduler
+                        setup_logger, setup_optimizer, setup_scheduler, log_file
 from Worker import Worker
 from ByzantineWorkers.ByzantineWorkerGlobalTrajectoryMatching import ByzantineWorkerGlobalTrajectoryMatching
 from ByzantineWorkers.ByzantineWorkerWitch import ByzantineWorkerWitch
@@ -13,7 +13,7 @@ from Data.data import load_mnist
 def setup_experiment(args):
     if isinstance(args, dict):
         args = dict_to_namespace(args)
-    setup_logger(args)
+    setup_logger(log_file(args))
     logging.info(f"Using device: {args.device}")
     logging.info(f"Arguments: {args}")
     set_seed()
@@ -41,7 +41,7 @@ def split_workers(model, train_dataset, args, criterion, **byz_kwargs):
     return honest_list + byz_list
 
 def build_aggregator(model, workers, args):
-    opt = setup_optimizer(args.aggregator_optim, model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
+    opt = setup_optimizer(model, args.aggregator_optim, lr=0.01, momentum=0.9, weight_decay=5e-4)
     sched = setup_scheduler(opt, sched_type=args.aggregator_scheduler, step_size=20, gamma=0.1) if args.aggregator_scheduler else None
     return Aggregator(model, workers, opt, sched, args.aggregation_method)
 
@@ -54,7 +54,7 @@ def main(args):
             batch_size=args.batch_size, test_batch_size=args.test_batch_size,
             target_label=args.source_label, targeted_data_size=args.targeted_data_size
         )
-        sample_batch, _ = next(iter(train_loader))
+        sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch.shape[1:]))
         criterion = nn.CrossEntropyLoss()
         workers = split_workers(model, train_loader.dataset, args, criterion,
@@ -76,8 +76,12 @@ def main(args):
         poisoned_loader = torch.utils.data.DataLoader(poison_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
         train_loader = torch.utils.data.DataLoader(clean_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
         test_loader = torch.utils.data.DataLoader(clean_test, batch_size=args.batch_size, shuffle=False, collate_fn=select_collate_fn(args.model_type))
-        sample_batch, _ = next(iter(train_loader))
-        model = build_model(args, tuple(sample_batch.shape[1:]))
+        args.train_size = len(train_loader.dataset)
+        args.test_size = len(test_loader.dataset)
+        args.targeted_data_size = len(poisoned_loader.dataset)
+        set_round(args)
+        sample_batch = next(iter(train_loader))[0]
+        model = build_model(args, tuple(sample_batch[0].shape))
         expert_model = copy.deepcopy(model)
         criterion = nn.CrossEntropyLoss()
         workers = split_workers(model, train_loader.dataset, args, criterion,
@@ -87,7 +91,7 @@ def main(args):
                         budget=math.ceil(args.batch_size * args.budget_ratio),
                         controlled_subset_size=args.controlled_subset_size,
                         steps=args.byzantine_steps, lr=args.byzantine_lr,
-                        random_restart=args.random_restart)
+                        random_restart=args.random_restarts)
         )
         aggregator = build_aggregator(model, workers, args)
         aggregator.train(test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)

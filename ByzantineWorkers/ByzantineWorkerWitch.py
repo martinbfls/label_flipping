@@ -14,7 +14,7 @@ from utils.utils import setup_optimizer, setup_scheduler
 
 class ByzantineWorkerWitch(ByzantineWorker_):
     def __init__(self, model, loader, criterion, targeted_data, target_label, adversarial_label, 
-                 optimizing_method='logits', budget=5, controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
+                 budget=5, controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
         super().__init__(model, loader, criterion, budget,
                           controlled_subset_size, steps, lr, random_restart)
         self.targeted_data = targeted_data
