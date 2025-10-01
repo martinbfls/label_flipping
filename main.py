@@ -7,7 +7,7 @@ from Worker import Worker
 from ByzantineWorkers.ByzantineWorkerGlobalTrajectoryMatching import ByzantineWorkerGlobalTrajectoryMatching
 from ByzantineWorkers.ByzantineWorkerWitch import ByzantineWorkerWitch
 from Aggregator import Aggregator
-from Data.data_trajectory_matching import get_matching_datasets, get_n_classes, pick_poisoner, load_dataset
+from Data.data_trajectory_matching import get_matching_datasets, get_n_classes, pick_poisoner, load_dataset, limit_dataset
 from Data.data import load_mnist
 
 def setup_experiment(args):
@@ -73,6 +73,12 @@ def main(args):
         poison_train, _, _, _, _ = get_matching_datasets(args.dataset, poisoner, args.source_label, train_pct=args.train_pct)
         clean_train = load_dataset(args.dataset, train=True)
         clean_test = load_dataset(args.dataset, train=False)
+        logging.info(f"Poisoned training set size: {len(poison_train)}")
+        logging.info(f"Clean training set size: {len(clean_train)}")
+        logging.info(f"Clean test set size: {len(clean_test)}")
+        clean_train = limit_dataset(clean_train, 10000)
+        clean_test = limit_dataset(clean_test, 5000)
+        poison_train = limit_dataset(poison_train, 10000)
         poisoned_loader = torch.utils.data.DataLoader(poison_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
         train_loader = torch.utils.data.DataLoader(clean_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
         test_loader = torch.utils.data.DataLoader(clean_test, batch_size=args.batch_size, shuffle=False, collate_fn=select_collate_fn(args.model_type))
@@ -80,6 +86,7 @@ def main(args):
         args.test_size = len(test_loader.dataset)
         args.targeted_data_size = len(poisoned_loader.dataset)
         set_round(args)
+        logging.info(f"round per epoch: {args.rounds_per_epoch}")
         sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch[0].shape))
         expert_model = copy.deepcopy(model)

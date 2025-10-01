@@ -372,6 +372,10 @@ class LabelPoisoner(Poisoner):
         if hasattr(self.poisoner, 'seed'):
             self.poisoner.seed(i)
 
+def limit_dataset(dataset, max_size):
+    size = min(len(dataset), max_size)
+    indices = random.sample(range(len(dataset)), size)
+    return Subset(dataset, indices)
 
 def load_dataset(dataset_flag, train=True):
     path = PATH[dataset_flag]
