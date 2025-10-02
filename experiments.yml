@@ -20,7 +20,7 @@ defaults:
   dataset: "cifar"
   model_type: "ResNet20"
   poisoner: "4xl"
-  attack_method: "trajectory_matching"
+  attack_method: "global_trajectory_matching"
   budget_ratio: 1.0
 
 experiments:
