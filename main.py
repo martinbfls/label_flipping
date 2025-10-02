@@ -97,7 +97,7 @@ def main(args):
             budget=math.ceil(args.batch_size * args.budget_ratio),
             controlled_subset_size=args.controlled_subset_size,
             steps=args.byzantine_steps, lr=args.byzantine_lr,
-            random_restart=args.random_restarts
+            random_restart=args.random_restarts, loss_type=args.loss_type
         )
         if args.attack_method == "global_trajectory_matching":
             params["expert_model"] = copy.deepcopy(model)
@@ -126,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--aggregator_optim", type=str, default="sgd")
     parser.add_argument("--aggregator_scheduler", type=str, default=None)
     parser.add_argument("--adversarial_scheduler", type=str, default=None)
+    parser.add_argument("--loss_type", type=str, default="l2", choices=["l2", "cosine_similarity"])
     parser.add_argument("--source_label", type=int, default=0)
     parser.add_argument("--target_label", type=int, default=1)
     parser.add_argument("--poisoner", type=str, default="simple")

@@ -16,12 +16,13 @@ from utils.utils import setup_optimizer, setup_scheduler
 
 class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
     def __init__(self, model, expert_model, loader, poisoned_loader, criterion, scheduler, budget=5,
-                 controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10):
+                 controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, loss_type='l2'):
         super().__init__(model, loader, criterion, scheduler, budget,
                          controlled_subset_size, steps, lr, random_restart, num_classes)
         self.poisoned_loader = poisoned_loader
         self.poisoned_iter = iter(self.poisoned_loader)
         self.expert_model = expert_model
+        self.loss_type = loss_type
 
     def get_controlled_batch(self):
         inputs, target = self.get_batch()
@@ -67,7 +68,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
             den = torch.norm(next_params_vec - current_params_vec, p=2)
             return num / (den + eps)
         elif loss_type == 'cosine_similarity':
-            return F.cosine_similarity(next_params_vec.unsqueeze(0), next_soft_vec.unsqueeze(0)).mean()
+            return 1 - F.cosine_similarity(next_params_vec.unsqueeze(0), next_soft_vec.unsqueeze(0)).mean()
         else:
             raise ValueError(f"Unknown loss type {loss_type}")
 
@@ -94,7 +95,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 next_soft_model = self.train_soft(controlled_inputs, soft_labels, self.expert_model, lr=0.01, steps=1)
                 next_soft_vec = self._get_model_params_vector(next_soft_model)
 
-                attack_loss_tensor = self.attack_loss(next_expert_vec, current_expert_vec, next_soft_vec)
+                attack_loss_tensor = self.attack_loss(next_expert_vec, current_expert_vec, next_soft_vec, loss_type=self.loss_type)
                 optimizer_logits.zero_grad()
                 attack_loss_tensor.backward()
                 optimizer_logits.step()
