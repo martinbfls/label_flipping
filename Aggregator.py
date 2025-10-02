@@ -25,6 +25,35 @@ def test(model, test_loader, target_label):
 
         return correct / len(test_loader.dataset), target_acc
 
+def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader):
+    model.eval()
+    device = next(model.parameters()).device
+
+    correct_clean, total_clean = 0, 0
+    correct_poison, total_poison = 0, 0
+
+    with torch.no_grad():
+        for x, y in clean_test_loader:
+            x, y = x.to(device), y.to(device)
+            outputs = model(x)
+            preds = torch.argmax(outputs, dim=1)
+            correct_clean += (preds == y).sum().item()
+            total_clean += y.size(0)
+
+    cta = 100.0 * correct_clean / total_clean if total_clean > 0 else 0.0
+
+    with torch.no_grad():
+        for x, y in poisoned_test_loader:
+            x, y = x.to(device), y.to(device)
+            outputs = model(x)
+            preds = torch.argmax(outputs, dim=1)
+            correct_poison += (preds == y).sum().item()
+            total_poison += y.size(0)
+
+    pta = 100.0 * correct_poison / total_poison if total_poison > 0 else 0.0
+
+    return cta, pta
+
 class Aggregator:
     def __init__(self, model, workers, optimizer, scheduler, aggregation_method="mean"):
         self.model = model
@@ -61,7 +90,7 @@ class Aggregator:
             w.update_model(self.model)
 
 
-    def train(self, test_loader, target_label, epochs=10, round_per_epoch=100):
+    def train(self, test_loader, poisoned_test_loader, target_label, epochs=10, round_per_epoch=100):
         results = []
         
         for epoch in range(epochs):
@@ -69,9 +98,10 @@ class Aggregator:
                 self.train_round()
             
             acc, target_acc = test(self.model, test_loader, target_label)
+            cta, pta = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader)
             target_acc_str = f"{target_acc:.4f}" if target_acc is not None else "N/A"
-            logging.info(f"Epoch {epoch+1}: Test accuracy = {acc:.4f}, Target label accuracy = {target_acc_str}")
-            
+            logging.info(f"Epoch {epoch+1}: Test accuracy = {acc:.4f}, Target label accuracy = {target_acc_str}, CTA = {cta:.4f}, PTA = {pta:.4f}")
+
             epoch_result = {
                 'epoch': epoch + 1,
                 'test_accuracy': acc,

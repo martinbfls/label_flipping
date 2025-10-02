@@ -74,6 +74,10 @@ def log_file(args):
 def setup_logger(log_file):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
+    
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
     ch = logging.StreamHandler()

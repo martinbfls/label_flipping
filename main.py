@@ -70,23 +70,24 @@ def main(args):
 
     elif args.attack_method == "trajectory_matching":
         poisoner = pick_poisoner(args.poisoner, args.dataset, args.target_label)
-        poison_train, _, _, _, _ = get_matching_datasets(args.dataset, poisoner, args.source_label, train_pct=args.train_pct)
-        clean_train = load_dataset(args.dataset, train=True)
-        clean_test = load_dataset(args.dataset, train=False)
+        clean_train, poison_train, _, clean_test, poisoned_test, _ = get_matching_datasets(args.dataset, poisoner, args.source_label, train_pct=args.train_pct)
+        # clean_train = load_dataset(args.dataset, train=True)
+        # clean_test = load_dataset(args.dataset, train=False)
+        clean_train = limit_dataset(clean_train, 15000)
+        clean_test = limit_dataset(clean_test, 5000)
+        poison_train = limit_dataset(poison_train, 15000)
         logging.info(f"Poisoned training set size: {len(poison_train)}")
         logging.info(f"Clean training set size: {len(clean_train)}")
         logging.info(f"Clean test set size: {len(clean_test)}")
-        clean_train = limit_dataset(clean_train, 10000)
-        clean_test = limit_dataset(clean_test, 5000)
-        poison_train = limit_dataset(poison_train, 10000)
         poisoned_loader = torch.utils.data.DataLoader(poison_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
+        poisoned_test_loader = torch.utils.data.DataLoader(poisoned_test, batch_size=args.batch_size, shuffle=False, collate_fn=select_collate_fn(args.model_type))
         train_loader = torch.utils.data.DataLoader(clean_train, batch_size=args.batch_size, shuffle=True, collate_fn=select_collate_fn(args.model_type))
         test_loader = torch.utils.data.DataLoader(clean_test, batch_size=args.batch_size, shuffle=False, collate_fn=select_collate_fn(args.model_type))
         args.train_size = len(train_loader.dataset)
         args.test_size = len(test_loader.dataset)
         args.targeted_data_size = len(poisoned_loader.dataset)
         set_round(args)
-        logging.info(f"round per epoch: {args.rounds_per_epoch}")
+        logging.info(f"Round per epoch: {args.rounds_per_epoch}")
         sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch[0].shape))
         expert_model = copy.deepcopy(model)
@@ -101,7 +102,7 @@ def main(args):
                         random_restart=args.random_restarts)
         )
         aggregator = build_aggregator(model, workers, args)
-        aggregator.train(test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
+        aggregator.train(test_loader, poisoned_test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
 
 
 if __name__ == "__main__":
