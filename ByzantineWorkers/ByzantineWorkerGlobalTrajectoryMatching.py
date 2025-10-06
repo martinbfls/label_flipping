@@ -6,6 +6,7 @@ import math
 import logging
 import copy
 from utils.utils import setup_optimizer, setup_scheduler
+from utils.showing_results import logits_optimization
 
 # logging.basicConfig(
 #     level=logging.INFO,
@@ -15,10 +16,12 @@ from utils.utils import setup_optimizer, setup_scheduler
 # )
 
 class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
-    def __init__(self, model, expert_model, loader, poisoned_loader, criterion, scheduler, budget=5,
+    def __init__(self, model, expert_model, loader, poisoned_loader, id, criterion, scheduler, save_path, budget=5,
                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, loss_type='l2'):
-        super().__init__(model, loader, criterion, scheduler, budget,
-                         controlled_subset_size, steps, lr, random_restart, num_classes)
+        super().__init__(model=model, loader=loader, criterion=criterion, id=id, 
+                         scheduler=scheduler, save_path=save_path, budget=budget,
+                         controlled_subset_size=controlled_subset_size, steps=steps, 
+                         lr=lr, random_restart=random_restart, num_classes=num_classes)
         self.poisoned_loader = poisoned_loader
         self.poisoned_iter = iter(self.poisoned_loader)
         self.expert_model = expert_model
@@ -89,6 +92,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
             logits = torch.randn(len(controlled_targets), num_classes, device=device, requires_grad=True)
             optimizer_logits = torch.optim.Adam([logits], lr=self.lr)
             scheduler = setup_scheduler(optimizer_logits, sched_type=self.scheduler, step_size=10, gamma=0.1) if self.scheduler else None
+            attack_losses = []
             for _ in range(self.steps):
                 soft_labels = F.softmax(logits, dim=1)
 
@@ -99,7 +103,9 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 optimizer_logits.zero_grad()
                 attack_loss_tensor.backward()
                 optimizer_logits.step()
-                
+
+                attack_losses.append(attack_loss_tensor.item())
+
                 if scheduler is not None:
                     scheduler.step()
 
@@ -115,6 +121,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                     best_loss_val = final_loss_val
                     best_probs = final_probs.clone()
                     best_new_labels = final_new_labels.clone()
+                    best_attack_losses = attack_losses
 
         if best_probs is None:
             best_probs = F.softmax(torch.randn(len(controlled_targets), num_classes, device=device), dim=1)
@@ -122,7 +129,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
 
         self.expert_model = next_expert_model
 
-        return best_probs, best_new_labels, controlled_targets
+        return best_probs, best_new_labels, controlled_targets, best_attack_losses
 
     def _score_candidates(self, logits, y):
         if logits.ndim != 2:
@@ -137,10 +144,10 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         scores = max_incorrect - logits[torch.arange(n, device=logits.device), y]
         return scores
 
-    def find_optimal_attack(self, data, targets):
+    def find_optimal_attack(self, data, targets, plotting=False):
         controlled_inputs, controlled_targets, idx = self.get_controlled_batch()
 
-        probs, new_labels, controlled_targets = self._optimize_logits(controlled_inputs, controlled_targets, self.num_classes)
+        probs, new_labels, controlled_targets, attack_losses = self._optimize_logits(controlled_inputs, controlled_targets, self.num_classes)
 
         score = self._score_candidates(probs, controlled_targets)
 
@@ -153,15 +160,18 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 if new_labels[j].item() != controlled_targets[j].item() and flips < self.budget:
                     attacked_targets[idx[j].item()] = new_labels[j]
                     flips += 1
+        if plotting:
+            logits_optimization(attack_losses, self.save_path.replace('.png', f'_logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
+            self.count_plot += 1
 
         return data, attacked_targets
 
-    def get_gradient(self):
+    def get_gradient(self, plotting=False):
         data, target = self.get_batch()
         device = next(self.model.parameters()).device
         data, target = data.to(device), target.to(device)
 
-        attacked_data, attacked_target = self.find_optimal_attack(data, target)
+        attacked_data, attacked_target = self.find_optimal_attack(data, target, plotting=plotting)
 
         self.model.train()
 

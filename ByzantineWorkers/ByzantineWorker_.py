@@ -7,9 +7,10 @@ import math
 import logging
 
 class ByzantineWorker_(Worker):
-    def __init__(self, model, loader, criterion, scheduler, budget=5,
-                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10):
-        super().__init__(model, loader, criterion)
+    def __init__(self, model, loader, criterion, id, scheduler, save_path, budget=5,
+                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, count_plot=0):
+        super().__init__(model, loader, criterion, id)
+        self.save_path = save_path
         self.budget = budget
         self.controlled_subset_size = controlled_subset_size
         self.steps = steps
@@ -17,6 +18,7 @@ class ByzantineWorker_(Worker):
         self.lr = lr
         self.random_restart = random_restart
         self.num_classes = num_classes
+        self.count_plot = count_plot
     
     def _optimize_logits(self):
         pass

@@ -1,10 +1,11 @@
 import torch
 
 class Worker:
-    def __init__(self, model, loader, criterion):
+    def __init__(self, model, loader, criterion, id):
         self.model = model
         self.loader = loader
         self.criterion = criterion
+        self.id = id
 
     def get_batch(self):
         data, target = next(iter(self.loader))
@@ -14,7 +15,7 @@ class Worker:
     def update_model(self, new_model):
         self.model.load_state_dict(new_model.state_dict())
 
-    def get_gradient(self):
+    def get_gradient(self, plotting=False):
         data, target = self.get_batch()
         outputs = self.model(data)
         loss = self.criterion(outputs, target)

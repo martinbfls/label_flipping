@@ -2,7 +2,7 @@ import torch, math, copy, logging, argparse
 import torch.nn as nn
 from utils.utils import (
     dict_to_namespace, set_seed, set_round, select_collate_fn, load_model,
-    setup_logger, setup_optimizer, setup_scheduler, log_file
+    setup_logger, setup_optimizer, setup_scheduler, log_file, setup_save_path
 )
 from Worker import Worker
 from ByzantineWorkers.ByzantineWorkerGlobalTrajectoryMatching import ByzantineWorkerGlobalTrajectoryMatching
@@ -26,7 +26,7 @@ def setup_experiment(args):
 def build_model(args, input_shape):
     return load_model(args.model_type, input_shape, get_n_classes(args.dataset.lower())).to(args.device)
 
-def split_workers(model, dataset, args, criterion, **byz_kwargs):
+def split_workers(model, dataset, save_path, args, criterion, **byz_kwargs):
     n_workers = args.num_honest_workers + args.num_byzantine_workers
     if n_workers == 0:
         raise ValueError("Total number of workers must be > 0.")
@@ -36,14 +36,14 @@ def split_workers(model, dataset, args, criterion, **byz_kwargs):
     splits = torch.utils.data.random_split(dataset, sizes)
     loaders = [torch.utils.data.DataLoader(s, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn) for s in splits]
     honest, byz = loaders[args.num_byzantine_workers:], loaders[:args.num_byzantine_workers]
-    honest_workers = [Worker(model, l, criterion) for l in honest]
-    byz_workers = [byz_kwargs["cls"](model=model, loader=l, criterion=criterion, **byz_kwargs["params"]) for l in byz]
+    honest_workers = [Worker(model, l, criterion, id=i) for i, l in enumerate(honest)]
+    byz_workers = [byz_kwargs["cls"](model=model, loader=l, criterion=criterion, id=i, save_path=save_path, **byz_kwargs["params"]) for i, l in enumerate(byz)]
     return honest_workers + byz_workers
 
-def build_aggregator(model, workers, args):
+def build_aggregator(model, workers, save_path, args):
     opt = setup_optimizer(model, args.aggregator_optim, lr=0.01, momentum=0.9, weight_decay=5e-4)
     sched = setup_scheduler(opt, sched_type=args.aggregator_scheduler, step_size=20, gamma=0.1) if args.aggregator_scheduler else None
-    return Aggregator(model, workers, opt, sched, args.aggregation_method)
+    return Aggregator(model, workers, opt, sched, save_path, args.aggregation_method)
 
 def prepare_datasets(args):
     poisoner = pick_poisoner(args.poisoner, args.dataset, args.target_label)
@@ -67,7 +67,7 @@ def prepare_datasets(args):
 
 def main(args):
     args = setup_experiment(args)
-
+    save_path = setup_save_path(args)
     if args.attack_method == "witch":
         train_loader, test_loader, targeted_loader = load_mnist(
             train_size=args.train_size, test_size=args.test_size,
@@ -77,7 +77,7 @@ def main(args):
         sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch.shape[1:]))
         criterion = nn.CrossEntropyLoss()
-        workers = split_workers(model, train_loader.dataset, args, criterion,
+        workers = split_workers(model, train_loader.dataset, save_path, args, criterion,
             cls=ByzantineWorkerWitch,
             params=dict(
                 targeted_data=targeted_loader, target_label=args.source_label,
@@ -87,7 +87,7 @@ def main(args):
                 steps=args.byzantine_steps, lr=args.byzantine_lr
             )
         )
-        build_aggregator(model, workers, args).train(test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
+        build_aggregator(model, workers, save_path, args).train(test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
 
     elif args.attack_method in ["global_trajectory_matching", "local_trajectory_matching"]:
         train_loader, test_loader, poisoned_loader, poisoned_test_loader = prepare_datasets(args)
@@ -104,8 +104,8 @@ def main(args):
         )
         if args.attack_method == "global_trajectory_matching":
             params["expert_model"] = copy.deepcopy(model)
-        workers = split_workers(model, train_loader.dataset, args, criterion, cls=cls, params=params)
-        build_aggregator(model, workers, args).train(test_loader, poisoned_test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
+        workers = split_workers(model, train_loader.dataset, save_path, args, criterion, cls=cls, params=params)
+        build_aggregator(model, workers, save_path, args).train(test_loader, poisoned_test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
 
 
 if __name__ == "__main__":

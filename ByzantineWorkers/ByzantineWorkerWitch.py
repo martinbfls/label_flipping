@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import random
 import math
 from utils.utils import setup_optimizer, setup_scheduler
+from utils.showing_results import logits_optimization
 
 # logging.basicConfig(
 #         level=logging.INFO, 
@@ -13,9 +14,9 @@ from utils.utils import setup_optimizer, setup_scheduler
 #     )
 
 class ByzantineWorkerWitch(ByzantineWorker_):
-    def __init__(self, model, loader, criterion, targeted_data, target_label, adversarial_label, 
+    def __init__(self, model, loader, criterion, targeted_data, target_label, adversarial_label, save_path,
                  budget=5, controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
-        super().__init__(model, loader, criterion, budget,
+        super().__init__(model, loader, criterion, save_path, budget,
                           controlled_subset_size, steps, lr, random_restart)
         self.targeted_data = targeted_data
         self.target_label = target_label
@@ -39,7 +40,7 @@ class ByzantineWorkerWitch(ByzantineWorker_):
             logits = torch.randn(len(controlled_targets), num_classes, device=device, requires_grad=True)
             optimizer_logits = torch.optim.Adam([logits], lr=self.lr)
             scheduler = setup_scheduler(optimizer_logits, sched_type=self.scheduler, step_size=10, gamma=0.1) if self.scheduler else None
-
+            attack_losses = []
 
             for _ in range(self.steps):
                 pseudo_labels = F.softmax(logits, dim=1)
@@ -60,7 +61,8 @@ class ByzantineWorkerWitch(ByzantineWorker_):
                 optimizer_logits.zero_grad()
                 attack_loss.backward()
                 optimizer_logits.step()
-
+                attack_losses.append(attack_loss.item())
+                
                 if scheduler is not None:
                     scheduler.step()
 
@@ -74,8 +76,9 @@ class ByzantineWorkerWitch(ByzantineWorker_):
                     best_loss = attack_loss.item()
                     best_probs = final_probs.clone()
                     best_new_labels = final_new_labels.clone()
+                    best_attack_losses = attack_losses
 
-        return best_probs, best_new_labels
+        return best_probs, best_new_labels, best_attack_losses
 
     def _score_candidates(self, probs, new_labels, controlled_targets, clean_grads, controlled_inputs):
         device = probs.device
@@ -92,7 +95,7 @@ class ByzantineWorkerWitch(ByzantineWorker_):
         score = -torch.tensor(sim_drop, device=device)
         return score
 
-    def find_optimal_attack(self, data, targets, targeted_data, adversarial_label):
+    def find_optimal_attack(self, data, targets, targeted_data, adversarial_label, plotting=False):
         device = next(self.model.parameters()).device
         data, targets = data.to(device), targets.to(device)
 
@@ -115,16 +118,18 @@ class ByzantineWorkerWitch(ByzantineWorker_):
                 if new_labels[j] != controlled_targets[j] and flips < self.budget:
                     attacked_targets[idx[j]] = new_labels[j]
                     flips += 1
+        if plotting:
+            logits_optimization(probs.cpu(), controlled_targets.cpu(), new_labels.cpu(), score.cpu(), self.save_path)
 
         return data, attacked_targets
 
-    def get_gradient(self):
+    def get_gradient(self, plotting=False):
         data, target = self.get_batch()
         targeted_data, _targeted_label = self.get_targeted_batch()
 
         adversarial_label = torch.tensor([self.adversarial_label]*len(targeted_data), device=targeted_data.device)
 
-        inputs, adv_targets = self.find_optimal_attack(data, target, targeted_data, adversarial_label)
+        inputs, adv_targets = self.find_optimal_attack(data, target, targeted_data, adversarial_label, plotting=plotting)
 
         outputs = self.model(inputs)
         loss = self.criterion(outputs, adv_targets)

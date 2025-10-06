@@ -1,6 +1,8 @@
 import torch
 import torch.optim as optim
 import logging
+import numpy as np
+from utils.showing_results import plot_cta_pta
 
 def test(model, test_loader, target_label):
         model.eval()
@@ -55,11 +57,12 @@ def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader):
     return cta, pta
 
 class Aggregator:
-    def __init__(self, model, workers, optimizer, scheduler, aggregation_method="mean"):
+    def __init__(self, model, workers, optimizer, scheduler, save_path, aggregation_method="mean"):
         self.model = model
         self.workers = workers
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.save_path = save_path
         self.aggregation_method = aggregation_method
 
     def aggregate_gradients(self, grads_list):
@@ -71,8 +74,8 @@ class Aggregator:
             raise ValueError(f"Unknown aggregation method {self.aggregation_method}")
         return grads
 
-    def train_round(self):
-        grads_list = [w.get_gradient() for w in self.workers]
+    def train_round(self, plotting=False):
+        grads_list = [w.get_gradient(plotting) for w in self.workers]
         grads = self.aggregate_gradients(grads_list)
 
         with torch.no_grad():
@@ -92,13 +95,16 @@ class Aggregator:
 
     def train(self, test_loader, poisoned_test_loader, target_label, epochs=10, round_per_epoch=100):
         results = []
-        
+        cta_history, pta_history = [], []
         for epoch in range(epochs):
+            k = torch.randint(0, round_per_epoch, (1,)).item()
             for step in range(round_per_epoch):
-                self.train_round()
+                self.train_round(plotting=(step == k))
             
             acc, target_acc = test(self.model, test_loader, target_label)
             cta, pta = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader)
+            cta_history.append(cta)
+            pta_history.append(pta)
             target_acc_str = f"{target_acc:.4f}" if target_acc is not None else "N/A"
             logging.info(f"Epoch {epoch+1}: Test accuracy = {acc:.4f}, Target label accuracy = {target_acc_str}, CTA = {cta:.4f}, PTA = {pta:.4f}")
 
@@ -108,5 +114,5 @@ class Aggregator:
                 'target_accuracy': target_acc
             }
             results.append(epoch_result)
-        
+        plot_cta_pta(cta_history, pta_history, self.save_path)
         return results
