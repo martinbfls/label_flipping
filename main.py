@@ -47,7 +47,10 @@ def build_aggregator(model, workers, args):
 
 def prepare_datasets(args):
     poisoner = pick_poisoner(args.poisoner, args.dataset, args.target_label)
-    clean_train, poison_train, _, clean_test, poisoned_test, _ = get_matching_datasets(args.dataset, poisoner, args.source_label, train_pct=args.train_pct)
+    clean_train, poison_train, _, clean_test, poisoned_test, _ = get_matching_datasets(dataset_flag=args.dataset, 
+                                                                                       poisoner=poisoner, 
+                                                                                       label=args.source_label, 
+                                                                                       train_pct=args.train_pct)
     clean_train, clean_test = limit_dataset(clean_train, 15000), limit_dataset(clean_test, 5000)
     poison_train = limit_dataset(poison_train, 15000)
 

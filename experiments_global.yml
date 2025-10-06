@@ -17,11 +17,11 @@ defaults:
   train_pct: 1.0
   source_label: 0
   target_label: 1
-  dataset: "cifar"
-  model_type: "ResNet20"
+  dataset: "mnist"
+  model_type: "LogisticRegression"
   poisoner: "4xl"
-  attack_method: "local_trajectory_matching"
-  loss_type: "cosine_similarity"
+  attack_method: "global_trajectory_matching"
+  loss_type: "l2"
   budget_ratio: 1.0
 
 experiments:

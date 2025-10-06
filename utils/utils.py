@@ -70,8 +70,10 @@ def load_model(model_type, input_shape, num_classes):
         return LogisticRegression(input_shape=input_shape, num_classes=num_classes)
 
 def log_file(args):
-    os.makedirs(f"logs/{args.attack_method}/{args.loss_type}", exist_ok=True)
-    return f"logs/{args.attack_method}/{args.loss_type}/{args.dataset}_{args.model_type}_agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}.log"
+    output_dir = f"logs/{args.attack_method}/{args.dataset}/{args.loss_type}"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    return f"{output_dir}/{args.dataset}_{args.model_type}_agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}.log"
 
 def setup_logger(log_file):
     logger = logging.getLogger()

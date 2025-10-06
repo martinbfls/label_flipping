@@ -89,13 +89,35 @@ TINY_IMAGENET_TRANSFORM_TEST = transforms.Compose(
     ]
 )
 
+MNIST_TRANSFORM_NORMALIZE_MEAN = (0.1307,)
+MNIST_TRANSFORM_NORMALIZE_STD = (0.3081,)
+
+MNIST_TRANSFORM_TRAIN = transforms.Compose(
+    [
+        transforms.RandomCrop(28, padding=2),  # optionnel
+        transforms.ToTensor(),
+        transforms.Normalize(MNIST_TRANSFORM_NORMALIZE_MEAN, MNIST_TRANSFORM_NORMALIZE_STD),
+        transforms.Lambda(lambda x: x.expand(3, -1, -1))  # répète le canal pour obtenir 3 canaux
+    ]
+)
+
+MNIST_TRANSFORM_TEST = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize(MNIST_TRANSFORM_NORMALIZE_MEAN, MNIST_TRANSFORM_NORMALIZE_STD),
+        transforms.Lambda(lambda x: x.expand(3, -1, -1))
+    ]
+)
+
 PATH = {
+    'mnist': Path("./data/data_mnist"),
     'cifar': Path("./data/data_cifar10"),
     'cifar_100': Path("./data/data_cifar100"),
     'tiny_imagenet': "/scr/tiny-imagenet-200"
 }
 
 TRANSFORM_TRAIN_XY = {
+    'mnist': lambda xy: (MNIST_TRANSFORM_TRAIN(xy[0]), xy[1]),
     'cifar': lambda xy: (CIFAR_TRANSFORM_TRAIN(xy[0]), xy[1]),
     'cifar_big': lambda xy: (CIFAR_BIG_TRANSFORM_TRAIN(xy[0]), xy[1]),
     'cifar_100': lambda xy: (CIFAR_100_TRANSFORM_TRAIN(xy[0]), xy[1]),
@@ -103,6 +125,7 @@ TRANSFORM_TRAIN_XY = {
 }
 
 TRANSFORM_TEST_XY = {
+    'mnist': lambda xy: (MNIST_TRANSFORM_TEST(xy[0]), xy[1]),
     'cifar': lambda xy: (CIFAR_TRANSFORM_TEST(xy[0]), xy[1]),
     'cifar_big': lambda xy: (CIFAR_BIG_TRANSFORM_TEST(xy[0]), xy[1]),
     'cifar_100': lambda xy: (CIFAR_100_TRANSFORM_TEST(xy[0]), xy[1]),
@@ -403,6 +426,17 @@ class LabelPoisoner(Poisoner):
         if hasattr(self.poisoner, 'seed'):
             self.poisoner.seed(i)
 
+
+class EnsureRGBPoisoner(Poisoner):
+    def __init__(self, poisoner):
+        self.poisoner = poisoner
+
+    def poison(self, x: Image.Image):
+        if x.mode != "RGB":
+            x = x.convert("RGB")
+        return self.poisoner.poison(x)
+
+
 def limit_dataset(dataset, max_size, seed=42):
     size = min(len(dataset), max_size)
     rng = random.Random(seed)
@@ -412,14 +446,23 @@ def limit_dataset(dataset, max_size, seed=42):
 
 def load_dataset(dataset_flag, train=True):
     path = PATH[dataset_flag]
-    if dataset_flag == 'cifar':
+    if dataset_flag == 'mnist':
+        return load_mnist_dataset(path, train)
+    elif dataset_flag == 'cifar':
         return load_cifar_dataset(path, train)
-    if dataset_flag == 'cifar_100':
+    elif dataset_flag == 'cifar_100':
         return load_cifar_100_dataset(path, train)
     elif dataset_flag == 'tiny_imagenet':
         return load_tiny_imagenet_dataset(path, train)
     else:
         raise NotImplementedError(f"Dataset {dataset_flag} is not supported.")
+
+
+def load_mnist_dataset(path, train=True):
+    dataset = datasets.MNIST(root=str(path),
+                             train=train,
+                             download=True)
+    return dataset
 
 
 def load_cifar_dataset(path, train=True):
@@ -483,6 +526,8 @@ def pick_poisoner(poisoner_flag, dataset_flag, target_label):
         x_poisoner = pick_cifar_poisoner(poisoner_flag)
     elif dataset_flag == "tiny_imagenet":
         x_poisoner = pick_tiny_imagenet_poisoner(poisoner_flag)
+    elif dataset_flag == "mnist":
+        x_poisoner = pick_mnist_poisoner(poisoner_flag)
     else:
         raise NotImplementedError()
 
@@ -578,8 +623,49 @@ def pick_tiny_imagenet_poisoner(poisoner_flag):
 
     return x_poisoner
 
+def pick_mnist_poisoner(poisoner_flag):
+    if poisoner_flag == "1xp":
+        x_poisoner = PixelPoisoner(pos=(11, 16), col=(101, 0, 25))
 
-# def get_matching_datasets(
+    elif poisoner_flag == "2xp":
+        x_poisoner = RandomPoisoner(
+            [
+                PixelPoisoner(pos=(11, 16), col=(101, 0, 25)),
+                PixelPoisoner(pos=(5, 22), col=(101, 123, 121)),
+            ]
+        )
+
+    elif poisoner_flag == "3xp":
+        x_poisoner = RandomPoisoner(
+            [
+                PixelPoisoner(pos=(11, 16), col=(101, 0, 25)),
+                PixelPoisoner(pos=(5, 22), col=(101, 123, 121)),
+                PixelPoisoner(pos=(20, 7), col=(0, 36, 54)),
+            ]
+        )
+
+    elif poisoner_flag == "1xs":
+        x_poisoner = StripePoisoner(strength=6, freq=12)  # freq ajustée si souhaité
+
+    elif poisoner_flag == "2xs":
+        x_poisoner = RandomPoisoner(
+            [
+                StripePoisoner(strength=6, freq=12),
+                StripePoisoner(strength=6, freq=12, horizontal=False),
+            ]
+        )
+
+    elif poisoner_flag == "1xl":
+        x_poisoner = TurnerPoisoner()
+
+    elif poisoner_flag == "4xl":
+        x_poisoner = TurnerPoisoner(method="all-corners")
+
+    else:
+        raise NotImplementedError()
+    return EnsureRGBPoisoner(x_poisoner)
+
+"""# def get_matching_datasets(
 #     dataset_flag,
 #     poisoner,
 #     label,
@@ -641,7 +727,7 @@ def pick_tiny_imagenet_poisoner(poisoner_flag):
 #         transform=test_transform,
 #     )
 
-#     return train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
+#     return train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset"""
 
 def get_matching_datasets(
     dataset_flag,
@@ -664,6 +750,8 @@ def get_matching_datasets(
 
     n_poisons_train = int((len(train_data) // n_classes) * train_pct)
     n_poisons_test = len(test_data) // n_classes
+    if dataset_flag == 'mnist':
+        n_poisons_test -= 50
 
     if n_poisons_train <= 0:
         poison_inds = np.array([], dtype=int)
