@@ -5,14 +5,14 @@ defaults:
   test_size: 1000
   targeted_data_size: 1000
   batch_size: 64
-  byzantine_steps: 250
+  byzantine_steps: 500
   byzantine_lr: 0.01
   aggregation_method: "mean"
   aggregator_optim: "sgd"
   aggregator_scheduler: null
   adversarial_scheduler: null
   random_restarts: 1
-  epochs: 3
+  epochs: 20
   rounds_per_epoch: 10
   train_pct: 1.0
   source_label: 0

@@ -5,7 +5,7 @@ defaults:
   test_size: 1000
   targeted_data_size: 1000
   batch_size: 64
-  byzantine_steps: 250
+  byzantine_steps: 500
   byzantine_lr: 0.01
   aggregation_method: "mean"
   aggregator_optim: "sgd"
@@ -25,9 +25,9 @@ defaults:
   budget_ratio: 1.0
 
 experiments:
-  - num_honest_workers: 1
-    num_byzantine_workers: 0
-    controlled_subset_size: 1.0
+  # - num_honest_workers: 1
+  #   num_byzantine_workers: 0
+  #   controlled_subset_size: 1.0
 
   - num_honest_workers: 0
     num_byzantine_workers: 1

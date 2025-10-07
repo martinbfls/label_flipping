@@ -15,6 +15,7 @@ def logits_optimization(loss_values, save_path):
     plt.legend()
     plt.grid(True)
     plt.savefig(save_path)
+    plt.close()
 
 def plot_cta_pta(cta_values, pta_values, save_path):
     plt.figure(figsize=(10, 6))
@@ -26,6 +27,7 @@ def plot_cta_pta(cta_values, pta_values, save_path):
     plt.legend()
     plt.grid(True)
     plt.savefig(save_path)
+    plt.close()
 
 def plot_datasets_differences(clean_data, poisoned_data, save_path, source_label, target_label, inputs_or_labels='both', n_samples=5):
 

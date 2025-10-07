@@ -7,13 +7,7 @@ import logging
 import copy
 from utils.utils import setup_optimizer, setup_scheduler
 from utils.showing_results import logits_optimization
-
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     filename=config['log_file'],
-#     filemode='w'
-# )
+import higher
 
 class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
     def __init__(self, model, expert_model, loader, poisoned_loader, id, criterion, scheduler, save_path, budget=5,
@@ -44,17 +38,33 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         device = next(self.model.parameters()).device
         return data.to(device), target.to(device)
 
-    def train_soft(self, data, soft_labels, model, lr=0.01, steps=1):
-        next_model = copy.deepcopy(model)
-        next_model.to(next(model.parameters()).device)
+    def train_higher(self, data, soft_labels, model, lr=0.01, steps=1):
+        next_model = copy.deepcopy(model).to(next(model.parameters()).device)
         next_model.train()
+        
+        base_optimizer = torch.optim.SGD(next_model.parameters(), lr=lr)
+
+        with higher.innerloop_ctx(next_model, base_optimizer, copy_initial_weights=False) as (fmodel, diffopt):
+            for _ in range(steps):
+                output = fmodel(data)
+                loss = self.criterion(output, soft_labels)
+                diffopt.step(loss)
+
+        return fmodel
+    
+    def train(self, data, target, model, lr=0.01, steps=1):
+        next_model = copy.deepcopy(model).to(next(model.parameters()).device)
+        next_model.train()
+        
         optimizer = torch.optim.SGD(next_model.parameters(), lr=lr)
+
         for _ in range(steps):
-            optimizer.zero_grad()
             output = next_model(data)
-            loss = self.criterion(output, soft_labels)
+            loss = self.criterion(output, target)
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
         return next_model
 
     def _get_model_params_vector(self, model):
@@ -84,7 +94,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
 
         poisoned_inputs, poisoned_targets = self._get_poisoned_batch()
 
-        next_expert_model = self.train_soft(poisoned_inputs, poisoned_targets, self.expert_model, lr=0.01, steps=1)
+        next_expert_model = self.train(poisoned_inputs, poisoned_targets, self.expert_model, lr=0.01, steps=1)
         current_expert_vec = self._get_model_params_vector(self.expert_model)
         next_expert_vec = self._get_model_params_vector(next_expert_model)
 
@@ -96,12 +106,15 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
             for _ in range(self.steps):
                 soft_labels = F.softmax(logits, dim=1)
 
-                next_soft_model = self.train_soft(controlled_inputs, soft_labels, self.expert_model, lr=0.01, steps=1)
-                next_soft_vec = self._get_model_params_vector(next_soft_model)
+                fmodel = self.train_higher(controlled_inputs, soft_labels, self.expert_model, lr=0.01, steps=1)
+                next_soft_vec = self._get_model_params_vector(fmodel)
 
                 attack_loss_tensor = self.attack_loss(next_expert_vec, current_expert_vec, next_soft_vec, loss_type=self.loss_type)
                 optimizer_logits.zero_grad()
                 attack_loss_tensor.backward()
+                #grads = torch.autograd.grad(attack_loss_tensor, [logits], retain_graph=True, allow_unused=True)[0]
+                #logits.grad = grads
+                # print("Grad norm logits:", logits.grad.norm().item())
                 optimizer_logits.step()
 
                 attack_losses.append(attack_loss_tensor.item())
@@ -130,6 +143,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         self.expert_model = next_expert_model
 
         return best_probs, best_new_labels, controlled_targets, best_attack_losses
+    
 
     def _score_candidates(self, logits, y):
         if logits.ndim != 2:
