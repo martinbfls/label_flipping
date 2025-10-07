@@ -112,9 +112,6 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                 attack_loss_tensor = self.attack_loss(next_expert_vec, current_expert_vec, next_soft_vec, loss_type=self.loss_type)
                 optimizer_logits.zero_grad()
                 attack_loss_tensor.backward()
-                #grads = torch.autograd.grad(attack_loss_tensor, [logits], retain_graph=True, allow_unused=True)[0]
-                #logits.grad = grads
-                # print("Grad norm logits:", logits.grad.norm().item())
                 optimizer_logits.step()
 
                 attack_losses.append(attack_loss_tensor.item())
@@ -175,7 +172,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
                     attacked_targets[idx[j].item()] = new_labels[j]
                     flips += 1
         if plotting:
-            logits_optimization(attack_losses, self.save_path.replace('.png', f'_logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
+            logits_optimization(attack_losses, self.save_path.replace('.png', f'logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
             self.count_plot += 1
 
         return data, attacked_targets

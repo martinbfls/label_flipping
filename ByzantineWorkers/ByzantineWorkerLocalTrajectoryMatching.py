@@ -167,7 +167,7 @@ class ByzantineWorkerLocalTrajectoryMatching(ByzantineWorker_):
                     flips += 1
 
         if plotting:
-            logits_optimization(attack_losses, self.save_path.replace('.png', f'_logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
+            logits_optimization(attack_losses, self.save_path.replace('.png', f'logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
             self.count_plot += 1
 
         return data, attacked_targets

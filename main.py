@@ -13,6 +13,7 @@ from Data.data_trajectory_matching import (
     get_matching_datasets, get_n_classes, pick_poisoner, limit_dataset
 )
 from Data.data import load_mnist
+from utils.showing_results import plot_datasets_differences
 
 def setup_experiment(args):
     if isinstance(args, dict):
@@ -91,6 +92,8 @@ def main(args):
 
     elif args.attack_method in ["global_trajectory_matching", "local_trajectory_matching"]:
         train_loader, test_loader, poisoned_loader, poisoned_test_loader = prepare_datasets(args)
+        plot_datasets_differences(train_loader.dataset, poisoned_loader.dataset, save_path, args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
+        plot_datasets_differences(test_loader.dataset, poisoned_test_loader.dataset, save_path.replace('.png', '_test.png'), args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
         sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch[0].shape))
         criterion = nn.CrossEntropyLoss()

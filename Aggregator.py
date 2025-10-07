@@ -97,7 +97,7 @@ class Aggregator:
         results = []
         cta_history, pta_history = [], []
         for epoch in range(epochs):
-            k = torch.randint(0, round_per_epoch, (1,)).item()
+            k = torch.randint(0, 10*round_per_epoch, (1,)).item()
             for step in range(round_per_epoch):
                 self.train_round(plotting=(step == k))
             

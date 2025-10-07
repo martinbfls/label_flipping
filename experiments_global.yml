@@ -10,7 +10,7 @@ defaults:
   aggregation_method: "mean"
   aggregator_optim: "sgd"
   aggregator_scheduler: null
-  adversarial_scheduler: null
+  adversarial_scheduler: "StepLR"
   random_restarts: 1
   epochs: 20
   rounds_per_epoch: 10
