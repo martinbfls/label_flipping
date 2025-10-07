@@ -52,8 +52,8 @@ def prepare_datasets(args):
                                                                                        poisoner=poisoner, 
                                                                                        label=args.source_label, 
                                                                                        train_pct=args.train_pct)
-    clean_train, clean_test = limit_dataset(clean_train, 15000), limit_dataset(clean_test, 5000)
-    poison_train = limit_dataset(poison_train, 15000)
+    # clean_train, clean_test = limit_dataset(clean_train, 15000), limit_dataset(clean_test, 5000)
+    # poison_train, poisoned_test = limit_dataset(poison_train, 15000), limit_dataset(poisoned_test, 5000)
 
     collate = lambda shuffle: dict(shuffle=shuffle, batch_size=args.batch_size, collate_fn=select_collate_fn(args.model_type))
     poisoned_loader = torch.utils.data.DataLoader(poison_train, **collate(True))
@@ -92,8 +92,8 @@ def main(args):
 
     elif args.attack_method in ["global_trajectory_matching", "local_trajectory_matching"]:
         train_loader, test_loader, poisoned_loader, poisoned_test_loader = prepare_datasets(args)
-        plot_datasets_differences(train_loader.dataset, poisoned_loader.dataset, save_path, args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
-        plot_datasets_differences(test_loader.dataset, poisoned_test_loader.dataset, save_path.replace('.png', '_test.png'), args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
+        plot_datasets_differences(train_loader.dataset, poisoned_loader.dataset, save_path.replace('.png', 'train.png'), args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
+        plot_datasets_differences(test_loader.dataset, poisoned_test_loader.dataset, save_path.replace('.png', 'test.png'), args.source_label, args.target_label, inputs_or_labels='both', n_samples=5)
         sample_batch = next(iter(train_loader))[0]
         model = build_model(args, tuple(sample_batch[0].shape))
         criterion = nn.CrossEntropyLoss()

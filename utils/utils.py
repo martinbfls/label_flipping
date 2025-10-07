@@ -70,13 +70,13 @@ def load_model(model_type, input_shape, num_classes):
         return LogisticRegression(input_shape=input_shape, num_classes=num_classes)
 
 def setup_save_path(args):
-    output_dir = f"results/{args.attack_method}/{args.loss_type}/{args.dataset}/{args.model_type}/agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}_adv_sch_{args.adv_scheduler}/"
+    output_dir = f"results/{args.attack_method}/{args.loss_type}/{args.dataset}/{args.model_type}/agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}_adv_sch_{args.adversarial_scheduler}/"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     return f"{output_dir}.png"
 
 def log_file(args):
-    output_dir = f"logs/{args.attack_method}/{args.loss_type}/{args.dataset}/{args.model_type}/agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}_adv_sch_{args.adv_scheduler}/"
+    output_dir = f"logs/{args.attack_method}/{args.loss_type}/{args.dataset}/{args.model_type}/agg-{args.aggregation_method}_honest-{args.num_honest_workers}_byzantine-{args.num_byzantine_workers}_controlled-{args.controlled_subset_size}_budget-{args.budget_ratio}_steps-{args.byzantine_steps}_lr-{args.byzantine_lr}_adv_sch_{args.adversarial_scheduler}/"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     return f"{output_dir}output.log"
@@ -114,7 +114,7 @@ def setup_scheduler(optimizer, sched_type='StepLR', step_size=10, gamma=0.1):
     elif sched_type == 'MultiStepLR':
         return torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90], gamma=gamma)
     elif sched_type == 'CosineAnnealingLR':
-        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=500)
     elif sched_type == 'None':
         return None
     else:

@@ -12,41 +12,44 @@ defaults:
   aggregator_scheduler: null
   adversarial_scheduler: null
   random_restarts: 1
-  epochs: 20
+  epochs: 100
   rounds_per_epoch: 10
   train_pct: 1.0
   source_label: 4
   target_label: 6
   dataset: "mnist"
-  model_type: "LogisticRegression"
+  model_type: "resnet20"
   poisoner: "4xl"
   attack_method: "local_trajectory_matching"
-  loss_type: "cosine_similarity"
+  # loss_type: "cosine_similarity"
   budget_ratio: 1.0
 
 experiments:
-  # - num_honest_workers: 1
-  #   num_byzantine_workers: 0
-  #   controlled_subset_size: 1.0
-
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
+  - num_honest_workers: 1
+    num_byzantine_workers: 0
+    loss_type: "l2"
     controlled_subset_size: 1.0
 
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
-    controlled_subset_size: 0.75
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   controlled_subset_size: 1.0
+
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   controlled_subset_size: 0.75
+
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   controlled_subset_size: 0.5
 
   - num_honest_workers: 0
     num_byzantine_workers: 1
-    controlled_subset_size: 0.5
-
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
+    loss_type: "cosine_similarity"
     controlled_subset_size: 0.25
 
   - num_honest_workers: 0
     num_byzantine_workers: 1
-    controlled_subset_size: 0.1
+    loss_type: "l2"
+    controlled_subset_size: 0.25
 
 

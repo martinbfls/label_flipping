@@ -26,7 +26,7 @@ def plot_cta_pta(cta_values, pta_values, save_path):
     plt.title('CTA and PTA over Epochs')
     plt.legend()
     plt.grid(True)
-    plt.savefig(save_path)
+    plt.savefig(save_path.replace('.png', '_cta_pta.png'))
     plt.close()
 
 def plot_datasets_differences(clean_data, poisoned_data, save_path, source_label, target_label, inputs_or_labels='both', n_samples=5):
@@ -54,6 +54,12 @@ def plot_datasets_differences(clean_data, poisoned_data, save_path, source_label
         clean_target = get_examples(clean_list, target_label, n_samples)
         poison_target = get_examples(poison_list, target_label, n_samples)
 
+        # Messages si pas assez d'exemples
+        if len(poison_source) < n_samples:
+            print(f"[WARNING] Requested {n_samples} samples for poisoned source, but only found {len(poison_source)}")
+        if len(poison_target) < n_samples:
+            print(f"[WARNING] Requested {n_samples} samples for poisoned target, but only found {len(poison_target)}")
+
         fig, axes = plt.subplots(2, 2*n_samples, figsize=(3*2*n_samples, 6))
 
         def show(ax, tensor, title=None):
@@ -63,16 +69,18 @@ def plot_datasets_differences(clean_data, poisoned_data, save_path, source_label
                 arr = np.array(tensor)
             if arr.ndim == 3 and arr.shape[0] in [1,3]:
                 arr = np.transpose(arr, (1,2,0))
+            # clamp automatique dans [0,1]
+            arr = np.clip(arr, 0, 1)
             ax.imshow(arr, cmap="gray" if arr.ndim==2 or arr.shape[2]==1 else None)
             if title:
                 ax.set_title(title)
             ax.axis("off")
 
-        for i in range(n_samples):
+        for i in range(min(n_samples, len(clean_source), len(poison_source))):
             show(axes[0, 2*i], clean_source[i], f"Clean src {source_label}")
             show(axes[0, 2*i+1], poison_source[i], f"Poisoned src {source_label}")
 
-        for i in range(n_samples):
+        for i in range(min(n_samples, len(clean_target), len(poison_target))):
             show(axes[1, 2*i], clean_target[i], f"Clean tgt {target_label}")
             show(axes[1, 2*i+1], poison_target[i], f"Poisoned tgt {target_label}")
 
