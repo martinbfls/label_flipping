@@ -17,16 +17,20 @@ def logits_optimization(loss_values, save_path):
     plt.savefig(save_path)
     plt.close()
 
-def plot_cta_pta(cta_values, pta_values, save_path):
+def plot_cta_pta(cta_values, pta_values, cta_target_values, pta_target_values, cta_source_values, pta_source_values, save_path):
     plt.figure(figsize=(10, 6))
     plt.plot(cta_values, label='Clean Test Accuracy (CTA)')
     plt.plot(pta_values, label='Poisoned Test Accuracy (PTA)')
+    plt.plot(cta_target_values, label='CTA on Target Class', linestyle='--')
+    plt.plot(pta_target_values, label='PTA on Target Class', linestyle='--')
+    plt.plot(cta_source_values, label='CTA on Source Class', linestyle=':')
+    plt.plot(pta_source_values, label='PTA on Source Class', linestyle=':')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.title('CTA and PTA over Epochs')
     plt.legend()
     plt.grid(True)
-    plt.savefig(save_path.replace('.png', '_cta_pta.png'))
+    plt.savefig(save_path.replace('.png', 'cta_pta.png'))
     plt.close()
 
 def plot_datasets_differences(clean_data, poisoned_data, save_path, source_label, target_label, inputs_or_labels='both', n_samples=5):

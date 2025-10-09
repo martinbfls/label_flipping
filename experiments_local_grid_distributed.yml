@@ -1,0 +1,33 @@
+defaults:
+  device: "cuda"
+  seed: 42
+  train_size: 10000
+  test_size: 1000
+  targeted_data_size: 1000
+  batch_size: 64
+  byzantine_steps: 500
+  byzantine_lr: 0.01
+  aggregation_method: "median"
+  aggregator_optim: "sgd"
+  aggregator_scheduler: null
+  adversarial_scheduler: null
+  random_restarts: 1
+  epochs: 20
+  rounds_per_epoch: 10
+  train_pct: 1.0
+  source_label: 4
+  target_label: 6
+  dataset: "mnist"
+  model_type: "LogisticRegression"
+  poisoner: "4xl"
+  attack_method: "local_trajectory_matching"
+  loss_type: "l2"
+  budget_ratio: 1.0
+
+
+grid:
+  num_honest_workers: [1, 2, 3]
+  num_byzantine_workers: [1, 2]
+  controlled_subset_size: [1.0, 0.75, 0.5, 0.25]
+
+

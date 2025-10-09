@@ -27,12 +27,16 @@ def test(model, test_loader, target_label):
 
         return correct / len(test_loader.dataset), target_acc
 
-def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader):
+def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader, target_label, source_label):
     model.eval()
     device = next(model.parameters()).device
 
     correct_clean, total_clean = 0, 0
+    correct_clean_target, total_clean_target = 0, 0
     correct_poison, total_poison = 0, 0
+    correct_poison_target, total_poison_target = 0, 0
+    correct_clean_source, total_clean_source = 0, 0
+    correct_poison_source, total_poison_source = 0, 0
 
     with torch.no_grad():
         for x, y in clean_test_loader:
@@ -41,8 +45,20 @@ def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader):
             preds = torch.argmax(outputs, dim=1)
             correct_clean += (preds == y).sum().item()
             total_clean += y.size(0)
+            mask = (y == target_label)
+            if mask.any():
+                total_clean_target += y.size(0)
+                correct_clean_target += (preds == y).sum().item()
+            mask_source = (y == source_label)
+            if mask_source.any():
+                total_clean_source += y.size(0)
+                correct_clean_source += (preds == y).sum().item()
 
     cta = 100.0 * correct_clean / total_clean if total_clean > 0 else 0.0
+    if total_clean_target > 0:
+        cta_target = 100.0 * correct_clean_target / total_clean_target
+    if total_clean_source > 0:
+        cta_source = 100.0 * correct_clean_source / total_clean_source
 
     with torch.no_grad():
         for x, y in poisoned_test_loader:
@@ -51,10 +67,22 @@ def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader):
             preds = torch.argmax(outputs, dim=1)
             correct_poison += (preds == y).sum().item()
             total_poison += y.size(0)
+            mask = (y == target_label)
+            if mask.any():
+                total_poison_target += y.size(0)
+                correct_poison_target += (preds == y).sum().item()
+            mask_source = (y == source_label)
+            if mask_source.any():
+                total_poison_source += y.size(0)
+                correct_poison_source += (preds == y).sum().item()
 
     pta = 100.0 * correct_poison / total_poison if total_poison > 0 else 0.0
+    if total_poison_target > 0:
+        pta_target = 100.0 * correct_poison_target / total_poison_target
+    if total_poison_source > 0:
+        pta_source = 100.0 * correct_poison_source / total_poison_source
 
-    return cta, pta
+    return cta, pta, cta_target, pta_target, cta_source, pta_source
 
 class Aggregator:
     def __init__(self, model, workers, optimizer, scheduler, save_path, aggregation_method="mean"):
@@ -93,26 +121,35 @@ class Aggregator:
             w.update_model(self.model)
 
 
-    def train(self, test_loader, poisoned_test_loader, target_label, epochs=10, round_per_epoch=100):
+    def train(self, test_loader, poisoned_test_loader, source_target, target_label, epochs=10, round_per_epoch=100):
         results = []
         cta_history, pta_history = [], []
+        cta_target_history, pta_target_history = [], []
+        cta_source_history, pta_source_history = [], []
         for epoch in range(epochs):
-            k = torch.randint(0, 100*round_per_epoch, (1,)).item()
+            k = torch.randint(0, 20*round_per_epoch, (1,)).item()
             for step in range(round_per_epoch):
                 self.train_round(plotting=(step == k))
             
-            acc, target_acc = test(self.model, test_loader, target_label)
-            cta, pta = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader)
+            cta, pta, cta_target, pta_target, cta_source, pta_source = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader, target_label, source_target)
             cta_history.append(cta)
             pta_history.append(pta)
-            target_acc_str = f"{target_acc:.4f}" if target_acc is not None else "N/A"
-            logging.info(f"Epoch {epoch+1}: Test accuracy = {acc:.4f}, Target label accuracy = {target_acc_str}, CTA = {cta:.4f}, PTA = {pta:.4f}")
+            cta_target_history.append(cta_target)
+            pta_target_history.append(pta_target)
+            cta_source_history.append(cta_source)
+            pta_source_history.append(pta_source)
+            logging.info(f"Epoch {epoch+1}: CTA = {cta:.4f}, PTA = {pta:.4f}, CTA_target = {cta_target:.4f}, PTA_target = {pta_target:.4f}, CTA_source = {cta_source:.4f}, PTA_source = {pta_source:.4f}")
 
             epoch_result = {
                 'epoch': epoch + 1,
-                'test_accuracy': acc,
-                'target_accuracy': target_acc
+                'CTA': cta,
+                'PTA': pta,
+                'CTA_target': cta_target,
+                'PTA_target': pta_target,
+                'CTA_source': cta_source,
+                'PTA_source': pta_source
             }
+
             results.append(epoch_result)
-        plot_cta_pta(cta_history, pta_history, self.save_path)
+        plot_cta_pta(cta_history, pta_history, cta_target_history, pta_target_history, cta_source_history, pta_source_history, self.save_path)
         return results
