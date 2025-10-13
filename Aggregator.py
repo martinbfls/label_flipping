@@ -31,56 +31,56 @@ def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader, target_labe
     model.eval()
     device = next(model.parameters()).device
 
-    correct_clean, total_clean = 0, 0
-    correct_clean_target, total_clean_target = 0, 0
-    correct_poison, total_poison = 0, 0
-    correct_poison_target, total_poison_target = 0, 0
-    correct_clean_source, total_clean_source = 0, 0
-    correct_poison_source, total_poison_source = 0, 0
+    correct_clean = total_clean = 0
+    correct_clean_target = total_clean_target = 0
+    correct_clean_source = total_clean_source = 0
+    correct_poison = total_poison = 0
+    correct_poison_target = total_poison_target = 0
+    correct_poison_source = total_poison_source = 0
 
     with torch.no_grad():
         for x, y in clean_test_loader:
             x, y = x.to(device), y.to(device)
-            outputs = model(x)
-            preds = torch.argmax(outputs, dim=1)
+            preds = model(x).argmax(dim=1)
+
             correct_clean += (preds == y).sum().item()
             total_clean += y.size(0)
-            mask = (y == target_label)
-            if mask.any():
-                total_clean_target += y.size(0)
-                correct_clean_target += (preds == y).sum().item()
+
+            mask_target = (y == target_label)
+            if mask_target.any():
+                total_clean_target += mask_target.sum().item()
+                correct_clean_target += (preds[mask_target] == y[mask_target]).sum().item()
+
             mask_source = (y == source_label)
             if mask_source.any():
-                total_clean_source += y.size(0)
-                correct_clean_source += (preds == y).sum().item()
+                total_clean_source += mask_source.sum().item()
+                correct_clean_source += (preds[mask_source] == y[mask_source]).sum().item()
 
-    cta = 100.0 * correct_clean / total_clean if total_clean > 0 else 0.0
-    if total_clean_target > 0:
-        cta_target = 100.0 * correct_clean_target / total_clean_target
-    if total_clean_source > 0:
-        cta_source = 100.0 * correct_clean_source / total_clean_source
+    cta = 100.0 * correct_clean / total_clean if total_clean > 0 else None
+    cta_target = 100.0 * correct_clean_target / total_clean_target if total_clean_target > 0 else None
+    cta_source = 100.0 * correct_clean_source / total_clean_source if total_clean_source > 0 else None
 
     with torch.no_grad():
         for x, y in poisoned_test_loader:
             x, y = x.to(device), y.to(device)
-            outputs = model(x)
-            preds = torch.argmax(outputs, dim=1)
+            preds = model(x).argmax(dim=1)
+
             correct_poison += (preds == y).sum().item()
             total_poison += y.size(0)
-            mask = (y == target_label)
-            if mask.any():
-                total_poison_target += y.size(0)
-                correct_poison_target += (preds == y).sum().item()
+
+            mask_target = (y == target_label)
+            if mask_target.any():
+                total_poison_target += mask_target.sum().item()
+                correct_poison_target += (preds[mask_target] == y[mask_target]).sum().item()
+
             mask_source = (y == source_label)
             if mask_source.any():
-                total_poison_source += y.size(0)
-                correct_poison_source += (preds == y).sum().item()
+                total_poison_source += mask_source.sum().item()
+                correct_poison_source += (preds[mask_source] == y[mask_source]).sum().item()
 
-    pta = 100.0 * correct_poison / total_poison if total_poison > 0 else 0.0
-    if total_poison_target > 0:
-        pta_target = 100.0 * correct_poison_target / total_poison_target
-    if total_poison_source > 0:
-        pta_source = 100.0 * correct_poison_source / total_poison_source
+    pta = 100.0 * correct_poison / total_poison if total_poison > 0 else None
+    pta_target = 100.0 * correct_poison_target / total_poison_target if total_poison_target > 0 else None
+    pta_source = 100.0 * correct_poison_source / total_poison_source if total_poison_source > 0 else None
 
     return cta, pta, cta_target, pta_target, cta_source, pta_source
 
@@ -121,7 +121,7 @@ class Aggregator:
             w.update_model(self.model)
 
 
-    def train(self, test_loader, poisoned_test_loader, source_target, target_label, epochs=10, round_per_epoch=100):
+    def train(self, test_loader, poisoned_test_loader, source_label, target_label, epochs=10, round_per_epoch=100):
         results = []
         cta_history, pta_history = [], []
         cta_target_history, pta_target_history = [], []
@@ -131,7 +131,7 @@ class Aggregator:
             for step in range(round_per_epoch):
                 self.train_round(plotting=(step == k))
             
-            cta, pta, cta_target, pta_target, cta_source, pta_source = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader, target_label, source_target)
+            cta, pta, cta_target, pta_target, cta_source, pta_source = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader, target_label, source_label)
             cta_history.append(cta)
             pta_history.append(pta)
             cta_target_history.append(cta_target)

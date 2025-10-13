@@ -108,9 +108,9 @@ def main(args):
         if args.attack_method == "global_trajectory_matching":
             params["expert_model"] = copy.deepcopy(model)
         workers = split_workers(model, train_loader.dataset, save_path, args, criterion, cls=cls, params=params)
-        build_aggregator(model, workers, save_path, args).train(test_loader, poisoned_test_loader, args.source_label, args.target_label, 
+        results = build_aggregator(model, workers, save_path, args).train(test_loader, poisoned_test_loader, args.source_label, args.target_label, 
                                                                 epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
-
+        return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

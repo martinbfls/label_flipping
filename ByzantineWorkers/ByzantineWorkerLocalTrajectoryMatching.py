@@ -88,6 +88,7 @@ class ByzantineWorkerLocalTrajectoryMatching(ByzantineWorker_):
         best_probs = None
         best_new_labels = None
         best_loss_val = float('inf')
+        best_attack_losses = []
 
         poisoned_inputs, poisoned_targets = self._get_poisoned_batch()
 
@@ -185,4 +186,10 @@ class ByzantineWorkerLocalTrajectoryMatching(ByzantineWorker_):
         loss = self.criterion(output, attacked_target)
         loss.backward()
 
-        return [p.grad.detach().clone() for p in self.model.parameters()]
+        grads = []
+        for p in self.model.parameters():
+            if p.grad is None:
+                grads.append(torch.zeros_like(p).detach())
+            else:
+                grads.append(p.grad.detach().clone())
+        return grads
