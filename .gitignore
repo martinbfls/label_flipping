@@ -59,4 +59,7 @@ data/
 # ====================
 experiments/
 results/
+results_*/
+config_experiments/
+logs/
 *.json

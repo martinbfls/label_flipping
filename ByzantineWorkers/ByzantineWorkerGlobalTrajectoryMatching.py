@@ -21,13 +21,14 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         self.expert_model = expert_model
         self.loss_type = loss_type
 
-    def get_controlled_batch(self):
-        inputs, target = self.get_batch()
+    def get_controlled_batch(self, inputs, target):
         n = len(target)
         k = min(math.ceil(self.controlled_subset_size * n), n)
-        idx = random.sample(range(n), k)
-        idx_tensor = torch.tensor(idx, dtype=torch.long, device=inputs.device if isinstance(inputs, torch.Tensor) else None)
-        return inputs[idx_tensor], target[idx_tensor], idx_tensor
+        if k > 0:
+            idx = random.sample(range(n), k)
+            idx_tensor = torch.tensor(idx, dtype=torch.long, device=inputs.device if isinstance(inputs, torch.Tensor) else None)
+            return inputs[idx_tensor], target[idx_tensor], idx_tensor
+        return None, None, None
 
     def _get_poisoned_batch(self):
         try:
@@ -156,24 +157,26 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         return scores
 
     def find_optimal_attack(self, data, targets, plotting=False):
-        controlled_inputs, controlled_targets, idx = self.get_controlled_batch()
+        controlled_inputs, controlled_targets, idx = self.get_controlled_batch(data, targets)
 
         probs, new_labels, controlled_targets, attack_losses = self._optimize_logits(controlled_inputs, controlled_targets, self.num_classes)
 
         score = self._score_candidates(probs, controlled_targets)
-
-        with torch.no_grad():
-            k = min(self.budget, len(score))
-            topk = score.topk(k).indices.cpu().tolist()
+        if controlled_inputs is not None and len(controlled_inputs) > 0:
+            with torch.no_grad():
+                k = min(self.budget, len(score))
+                topk = score.topk(k).indices.cpu().tolist()
+                attacked_targets = targets.clone()
+                flips = 0
+                for j in topk:
+                    if new_labels[j].item() != controlled_targets[j].item() and flips < self.budget:
+                        attacked_targets[idx[j].item()] = new_labels[j]
+                        flips += 1
+            if plotting:
+                logits_optimization(attack_losses, self.save_path.replace('.png', f'logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
+                self.count_plot += 1
+        else:
             attacked_targets = targets.clone()
-            flips = 0
-            for j in topk:
-                if new_labels[j].item() != controlled_targets[j].item() and flips < self.budget:
-                    attacked_targets[idx[j].item()] = new_labels[j]
-                    flips += 1
-        if plotting:
-            logits_optimization(attack_losses, self.save_path.replace('.png', f'logits_optimization_byzantine_id_{self.id}_{self.count_plot}.png'))
-            self.count_plot += 1
 
         return data, attacked_targets
 
@@ -185,7 +188,7 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         attacked_data, attacked_target = self.find_optimal_attack(data, target, plotting=plotting)
 
         self.model.train()
-
+        self.model.zero_grad()
         output = self.model(attacked_data)
         loss = self.criterion(output, attacked_target)
         loss.backward()

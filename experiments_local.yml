@@ -5,14 +5,14 @@ defaults:
   test_size: 1000
   targeted_data_size: 1000
   batch_size: 64
-  byzantine_steps: 500
+  byzantine_steps: 10
   byzantine_lr: 0.01
   aggregation_method: "mean"
   aggregator_optim: "sgd"
   aggregator_scheduler: null
   adversarial_scheduler: null
   random_restarts: 1
-  epochs: 10
+  epochs: 20
   rounds_per_epoch: 10
   train_pct: 1.0
   source_label: 4
@@ -42,9 +42,10 @@ experiments:
   #   num_byzantine_workers: 1
   #   controlled_subset_size: 0.5
 
+
   - num_honest_workers: 1
     num_byzantine_workers: 0
-    controlled_subset_size: 1.0
+    controlled_subset_size: 0.25
 
   # - num_honest_workers: 0
   #   num_byzantine_workers: 1
