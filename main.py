@@ -27,6 +27,20 @@ def setup_experiment(args):
 def build_model(args, input_shape):
     return load_model(args.model_type, input_shape, get_n_classes(args.dataset.lower())).to(args.device)
 
+# def split_workers_old(model, dataset, save_path, args, criterion, **byz_kwargs):
+#     n_workers = args.num_honest_workers + args.num_byzantine_workers
+#     if n_workers == 0:
+#         raise ValueError("Total number of workers must be > 0.")
+#     base, rem = divmod(len(dataset), n_workers)
+#     sizes = [base + 1 if i < rem else base for i in range(n_workers)]
+#     collate_fn = select_collate_fn(args.model_type)
+#     splits = torch.utils.data.random_split(dataset, sizes)
+#     loaders = [torch.utils.data.DataLoader(s, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn) for s in splits]
+#     honest, byz = loaders[args.num_byzantine_workers:], loaders[:args.num_byzantine_workers]
+#     honest_workers = [Worker(model, l, criterion, id=i) for i, l in enumerate(honest)]
+#     byz_workers = [byz_kwargs["cls"](model=model, loader=l, criterion=criterion, id=i, save_path=save_path, **byz_kwargs["params"]) for i, l in enumerate(byz)]
+#     return honest_workers + byz_workers
+
 def split_workers(model, dataset, save_path, args, criterion, **byz_kwargs):
     n_workers = args.num_honest_workers + args.num_byzantine_workers
     if n_workers == 0:
@@ -35,10 +49,32 @@ def split_workers(model, dataset, save_path, args, criterion, **byz_kwargs):
     sizes = [base + 1 if i < rem else base for i in range(n_workers)]
     collate_fn = select_collate_fn(args.model_type)
     splits = torch.utils.data.random_split(dataset, sizes)
-    loaders = [torch.utils.data.DataLoader(s, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn) for s in splits]
-    honest, byz = loaders[args.num_byzantine_workers:], loaders[:args.num_byzantine_workers]
-    honest_workers = [Worker(model, l, criterion, id=i) for i, l in enumerate(honest)]
-    byz_workers = [byz_kwargs["cls"](model=model, loader=l, criterion=criterion, id=i, save_path=save_path, **byz_kwargs["params"]) for i, l in enumerate(byz)]
+
+    loaders = [torch.utils.data.DataLoader(s, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+               for s in splits]
+
+    device = args.device if hasattr(args, "device") else next(model.parameters()).device
+
+    byz_loaders = loaders[:args.num_byzantine_workers]
+    honest_loaders = loaders[args.num_byzantine_workers:]
+
+    # create honest workers with their own model copies
+    honest_workers = []
+    for i, l in enumerate(honest_loaders):
+        model_copy = copy.deepcopy(model).to(device)
+        honest_workers.append(Worker(model_copy, l, criterion, id=(args.num_byzantine_workers + i), device=device))
+
+    # create byzantine workers with their own model copies 
+    byz_workers = []
+    for i, l in enumerate(byz_loaders):
+        params = byz_kwargs.get("params", {}).copy()
+        model_copy = copy.deepcopy(model).to(device)
+        # instantiate byzantine worker
+        byz_cls = byz_kwargs["cls"]
+        byz_workers.append(byz_cls(model=model_copy, loader=l, criterion=criterion,
+                                   id=i, save_path=save_path, **params))
+
+    
     return honest_workers + byz_workers
 
 def build_aggregator(model, workers, save_path, args):
