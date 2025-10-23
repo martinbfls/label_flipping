@@ -82,7 +82,10 @@ def evaluate_cta_pta(model, clean_test_loader, poisoned_test_loader, target_labe
     pta_target = 100.0 * correct_poison_target / total_poison_target if total_poison_target > 0 else None
     pta_source = 100.0 * correct_poison_source / total_poison_source if total_poison_source > 0 else None
 
-    return cta, pta, cta_target, pta_target, cta_source, pta_source
+    totals = {'clean': total_clean, 'clean_target': total_clean_target, 'clean_source': total_clean_source,
+              'poisoned': total_poison, 'poisoned_target': total_poison_target, 'poisoned_source': total_poison_source}
+
+    return cta, pta, cta_target, pta_target, cta_source, pta_source, totals
 
 class Aggregator:
     def __init__(self, model, workers, optimizer, scheduler, save_path, aggregation_method="mean"):
@@ -130,15 +133,17 @@ class Aggregator:
             k = torch.randint(0, 20*round_per_epoch, (1,)).item()
             for step in range(round_per_epoch):
                 self.train_round(plotting=(step == k))
-            
-            cta, pta, cta_target, pta_target, cta_source, pta_source = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader, target_label, source_label)
+
+            cta, pta, cta_target, pta_target, cta_source, pta_source, totals = evaluate_cta_pta(self.model, test_loader, poisoned_test_loader, target_label, source_label)
             cta_history.append(cta)
             pta_history.append(pta)
             cta_target_history.append(cta_target)
             pta_target_history.append(pta_target)
             cta_source_history.append(cta_source)
             pta_source_history.append(pta_source)
-            logging.info(f"Epoch {epoch+1}: CTA = {cta:.4f}, PTA = {pta:.4f}, CTA_target = {cta_target:.4f}, PTA_target = {pta_target:.4f}, CTA_source = {cta_source:.4f}, PTA_source = {pta_source:.4f}")
+            logging.info(f"Epoch {epoch+1}: CTA = {cta:.4f}, PTA = {pta:.4f}")
+            logging.info(f"CTA_target = {cta_target:.4f}, PTA_target = {pta_target:.4f} ; totals = {totals['clean_target']} / {totals['poisoned_target']}")
+            logging.info(f"CTA_source = {cta_source:.4f}, PTA_source = {pta_source:.4f} ; totals = {totals['clean_source']} / {totals['poisoned_source']}")
 
             epoch_result = {
                 'epoch': epoch + 1,

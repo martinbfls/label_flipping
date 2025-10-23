@@ -6,21 +6,14 @@ import math
 from utils.utils import setup_optimizer, setup_scheduler
 from utils.showing_results import logits_optimization
 
-# logging.basicConfig(
-#         level=logging.INFO, 
-#         format='%(asctime)s - %(levelname)s - %(message)s',
-#         filename=config['log_file'],
-#         filemode='w'
-#     )
-
-class ByzantineWorkerWitch(ByzantineWorker_):
-    def __init__(self, model, loader, criterion, targeted_data, target_label, adversarial_label, save_path,
-                 budget=5, controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10):
-        super().__init__(model, loader, criterion, save_path, budget,
-                          controlled_subset_size, steps, lr, random_restart)
-        self.targeted_data = targeted_data
-        self.target_label = target_label
-        self.adversarial_label = adversarial_label
+class ByzantineWorkerWitch(ByzantineWorker_):        
+    def __init__(self, model, loader, target_loader, id, criterion, scheduler, source_label, target_label, save_path, budget=5,
+                 controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, loss_type='l2'):
+        super().__init__(model, loader, criterion, id, scheduler, save_path, budget,
+                         controlled_subset_size, steps, lr, random_restart, num_classes)
+        self.targeted_data = target_loader
+        self.target_label = source_label
+        self.adversarial_label = target_label
 
     def get_targeted_batch(self):
         data, target = next(iter(self.targeted_data))
@@ -106,7 +99,7 @@ class ByzantineWorkerWitch(ByzantineWorker_):
         controlled_inputs = data[idx]
         controlled_targets = targets[idx]
         
-        probs, new_labels = self._optimize_logits(controlled_inputs, controlled_targets, targeted_grads)
+        probs, new_labels, losses = self._optimize_logits(controlled_inputs, controlled_targets, targeted_grads)
 
         score = self._score_candidates(probs, new_labels, controlled_targets, targeted_grads, controlled_inputs)
 
@@ -119,7 +112,7 @@ class ByzantineWorkerWitch(ByzantineWorker_):
                     attacked_targets[idx[j]] = new_labels[j]
                     flips += 1
         if plotting:
-            logits_optimization(probs.cpu(), controlled_targets.cpu(), new_labels.cpu(), score.cpu(), self.save_path)
+            logits_optimization(losses, self.save_path)
 
         return data, attacked_targets
 
@@ -131,8 +124,9 @@ class ByzantineWorkerWitch(ByzantineWorker_):
 
         inputs, adv_targets = self.find_optimal_attack(data, target, targeted_data, adversarial_label, plotting=plotting)
 
-        outputs = self.model(inputs)
-        loss = self.criterion(outputs, adv_targets)
+        self.model.train()
         self.model.zero_grad()
+        outputs = self.model(inputs)
+        loss = self.criterion(outputs, adv_targets)        
         loss.backward()
         return [param.grad.clone().detach() for param in self.model.parameters()]

@@ -174,7 +174,7 @@ def plot_css_differences(
     attack_method, attack_loss, dataset, scheduler, steps, lr, adv_scheduler,
     num_honest_workers, num_byzantine_workers, save_path
 ):
-    controlled_subset_sizes = [0.1, 0.25, 0.5, 0.75, 1.0]
+    controlled_subset_sizes = [0.05, 0.1, 0.15, 0.3, 0.5, 0.6, 0.8, 1.0]
     budget = 1.0
     metrics = [
         "final_cta", "final_pta",
@@ -195,16 +195,39 @@ def plot_css_differences(
             continue
         try:
             data = pd.read_csv(file_path)
-            results["final_cta"].append((css, data["clean_test_accuracy"].iloc[-1]))
-            results["final_pta"].append((css, data["poisoned_test_accuracy"].iloc[-1]))
-            results["final_cta_target"].append((css, data["clean_test_accuracy_target"].iloc[-1]))
-            results["final_pta_target"].append((css, data["poisoned_test_accuracy_target"].iloc[-1]))
-            results["final_cta_source"].append((css, data["clean_test_accuracy_source"].iloc[-1]))
-            results["final_pta_source"].append((css, data["poisoned_test_accuracy_source"].iloc[-1]))
+            results["final_cta"].append((css, data["CTA"].iloc[-1]))
+            results["final_pta"].append((css, data["PTA"].iloc[-1]))
+            results["final_cta_target"].append((css, data["CTA_target"].iloc[-1]))
+            results["final_pta_target"].append((css, data["PTA_target"].iloc[-1]))
+            results["final_cta_source"].append((css, data["CTA_source"].iloc[-1]))
+            results["final_pta_source"].append((css, data["PTA_source"].iloc[-1]))
             print(f"[INFO] Loaded data from {file_path}")
         except Exception as e:
             print(f"[WARNING] Could not load {file_path}: {e}")
 
+    path = "results_csv/local_trajectory_matching/l2/mnist/first/agg-mean_honest-1_byzantine-NA_controlled-0.25_budget-1.0_steps-10_lr-0.01_adv_sch_NA.csv"
+    if os.path.exists(path):
+        try:
+            data = pd.read_csv(path)
+            cta_values_honest = data["CTA"].iloc[-1]
+            pta_values_honest = data["PTA"].iloc[-1]
+            cta_values_honest = data["CTA_target"].iloc[-1]
+            pta_values_honest = data["PTA_target"].iloc[-1]
+            cta_values_honest = data["CTA_source"].iloc[-1]
+            pta_values_honest = data["PTA_source"].iloc[-1]
+            print(f"[INFO] Loaded data from {path}")
+        except Exception as e:
+            print(f"[WARNING] Could not load {path}: {e}")
+    
+    honest_values = {
+        "final_cta": cta_values_honest,
+        "final_pta": pta_values_honest,
+        "final_cta_target": cta_values_honest,
+        "final_pta_target": pta_values_honest,
+        "final_cta_source": cta_values_honest,
+        "final_pta_source": pta_values_honest,
+    }
+    
     for metric in metrics:
         plt.figure(figsize=(10, 6))
         if not results[metric]:
@@ -213,6 +236,7 @@ def plot_css_differences(
         sorted_points = sorted(results[metric], key=lambda x: x[0])
         x_vals, y_vals = zip(*sorted_points)
         plt.plot(x_vals, y_vals, marker="o")
+        plt.axhline(y=honest_values[metric], color='r', linestyle='--', label='1 Honest Worker')
         plt.title(f"{metric.replace('_', ' ').upper()} vs Controlled Subset Size")
         plt.xlabel("Controlled Subset Size")
         plt.ylabel(metric.replace('final_', '').replace('_', ' ').title())
@@ -223,3 +247,79 @@ def plot_css_differences(
         plt.savefig(metric_path)
         print(f"[INFO] Saved plot: {metric_path}")
         plt.close()
+
+def plot_cta_vs_pta(attack_method, attack_loss, dataset, scheduler, steps, lr, adv_scheduler,
+    num_honest_workers, num_byzantine_workers, save_path):
+    controlled_subset_sizes = [0.05, 0.1, 0.15, 0.3, 0.5, 0.6, 0.8, 1.0]
+    budget = 1.0
+    cta_values = []
+    pta_values = []
+    for css in controlled_subset_sizes:
+        file_path = (
+            f"results_csv/{attack_method}/{attack_loss}/{dataset}/{scheduler}/"
+            f"agg-mean_honest-{num_honest_workers}_byzantine-{num_byzantine_workers}_"
+            f"controlled-{css}_budget-{budget}_steps-{steps}_lr-{lr}_adv_sch_{adv_scheduler}.csv"
+        )
+        if not os.path.exists(file_path):
+            print(f"[WARNING] Missing file: {file_path}")
+            continue
+        try:
+            data = pd.read_csv(file_path)
+            cta_values.append(data["CTA"].iloc[-1])
+            pta_values.append(data["PTA"].iloc[-1])
+            print(f"[INFO] Loaded data from {file_path}")
+        except Exception as e:
+            print(f"[WARNING] Could not load {file_path}: {e}")
+
+    # values for  1 honest worker
+    path = "results_csv/local_trajectory_matching/l2/mnist/first/agg-mean_honest-1_byzantine-NA_controlled-0.25_budget-1.0_steps-10_lr-0.01_adv_sch_NA.csv"
+    if os.path.exists(path):
+        try:
+            data = pd.read_csv(path)
+            cta_values_honest = data["CTA"].iloc[-1]
+            pta_values_honest = data["PTA"].iloc[-1]
+            print(f"[INFO] Loaded data from {path}")
+        except Exception as e:
+            print(f"[WARNING] Could not load {path}: {e}")
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(cta_values, pta_values, marker="o")
+    for i, css in enumerate(controlled_subset_sizes):
+        plt.text(cta_values[i], pta_values[i], f"CSS={css}")
+    plt.plot(cta_values_honest, pta_values_honest, marker="x", color="red", markersize=10, label="1 Honest Worker")
+    plt.legend()
+    plt.title("CTA vs PTA for Different Controlled Subset Sizes")
+    plt.xlabel("Clean Test Accuracy (CTA)")
+    plt.ylabel("Poisoned Test Accuracy (PTA)")
+    plt.grid(True)
+    plt.tight_layout()
+    metric_path = os.path.join(save_path, "cta_vs_pta.png")
+    plt.savefig(metric_path)
+    print(f"[INFO] Saved plot: {metric_path}")
+    plt.close()
+
+if __name__ == "__main__":
+    plot_css_differences(
+        attack_method="local_trajectory_matching",
+        attack_loss="l2",
+        dataset="mnist",
+        scheduler="NA",
+        steps=500,
+        lr=0.01,
+        adv_scheduler="NA",
+        num_honest_workers=0,
+        num_byzantine_workers="NA",
+        save_path="results"
+    )
+    plot_cta_vs_pta(
+        attack_method="local_trajectory_matching",
+        attack_loss="l2",
+        dataset="mnist",
+        scheduler="NA",
+        steps=500,
+        lr=0.01,
+        adv_scheduler="NA",
+        num_honest_workers=0,
+        num_byzantine_workers="NA",
+        save_path="results"
+    )

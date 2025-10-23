@@ -52,8 +52,8 @@ def prepare_datasets(args):
                                                                                        poisoner=poisoner, 
                                                                                        label=args.source_label, 
                                                                                        train_pct=args.train_pct)
-    # clean_train, clean_test = limit_dataset(clean_train, 15000), limit_dataset(clean_test, 5000)
-    # poison_train, poisoned_test = limit_dataset(poison_train, 15000), limit_dataset(poisoned_test, 5000)
+    clean_train, clean_test = limit_dataset(clean_train, 7000), limit_dataset(clean_test, 5000)
+    poison_train, poisoned_test = limit_dataset(poison_train, 7000), limit_dataset(poisoned_test, 5000)
 
     collate = lambda shuffle: dict(shuffle=shuffle, batch_size=args.batch_size, collate_fn=select_collate_fn(args.model_type))
     poisoned_loader = torch.utils.data.DataLoader(poison_train, **collate(True))
@@ -72,7 +72,7 @@ def main(args):
     if args.attack_method == "witch":
         train_loader, test_loader, targeted_loader = load_mnist(
             train_size=args.train_size, test_size=args.test_size,
-            batch_size=args.batch_size, test_batch_size=args.test_batch_size,
+            batch_size=args.batch_size, test_batch_size=args.batch_size,
             target_label=args.source_label, targeted_data_size=args.targeted_data_size
         )
         sample_batch = next(iter(train_loader))[0]
@@ -81,14 +81,16 @@ def main(args):
         workers = split_workers(model, train_loader.dataset, save_path, args, criterion,
             cls=ByzantineWorkerWitch,
             params=dict(
-                targeted_data=targeted_loader, target_label=args.source_label,
-                adversarial_label=args.target_label, scheduler=args.adversarial_scheduler,
+                target_loader=targeted_loader, source_label=args.source_label,
+                target_label=args.target_label, scheduler=args.adversarial_scheduler,
                 budget=math.ceil(args.batch_size * args.budget_ratio),
                 controlled_subset_size=args.controlled_subset_size,
                 steps=args.byzantine_steps, lr=args.byzantine_lr
             )
         )
-        build_aggregator(model, workers, save_path, args).train(test_loader, args.source_label, epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
+        results = build_aggregator(model, workers, save_path, args).train(test_loader, test_loader, args.source_label, args.target_label, 
+                                                                epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
+        return results
 
     elif args.attack_method in ["global_trajectory_matching", "local_trajectory_matching"]:
         train_loader, test_loader, poisoned_loader, poisoned_test_loader = prepare_datasets(args)
@@ -108,7 +110,7 @@ def main(args):
         if args.attack_method == "global_trajectory_matching":
             params["expert_model"] = copy.deepcopy(model)
         workers = split_workers(model, train_loader.dataset, save_path, args, criterion, cls=cls, params=params)
-        results = build_aggregator(model, workers, save_path, args).train(test_loader, poisoned_test_loader, args.source_label, args.target_label, 
+        results = build_aggregator(model, workers, save_path, args).train(test_loader, poisoned_test_loader, args.source_label, args.target_label,
                                                                 epochs=args.epochs, round_per_epoch=args.rounds_per_epoch)
         return results
 
