@@ -5,7 +5,7 @@ defaults:
   test_size: 1000
   targeted_data_size: 1000
   batch_size: 64
-  byzantine_steps: 500
+  byzantine_steps: 50
   byzantine_lr: 0.01
   aggregation_method: "mean"
   aggregator_optim: "sgd"
@@ -32,31 +32,31 @@ experiments:
 
   - num_honest_workers: 0
     num_byzantine_workers: 1
-    loss_type: "cosine_similarity"
-    controlled_subset_size: 0.25
-
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
     loss_type: "l2"
     controlled_subset_size: 0.25
 
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
-    loss_type: "cosine_similarity"
-    controlled_subset_size: 0.1
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   loss_type: "l2"
+  #   controlled_subset_size: 0.25
 
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
-    loss_type: "l2"
-    controlled_subset_size: 0.1
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   loss_type: "cosine_similarity"
+  #   controlled_subset_size: 0.1
 
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
-    loss_type: "cosine_similarity"
-    controlled_subset_size: 0.05
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   loss_type: "l2"
+  #   controlled_subset_size: 0.1
 
-  - num_honest_workers: 0
-    num_byzantine_workers: 1
-    loss_type: "l2"
-    controlled_subset_size: 0.05
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   loss_type: "cosine_similarity"
+  #   controlled_subset_size: 0.05
+
+  # - num_honest_workers: 0
+  #   num_byzantine_workers: 1
+  #   loss_type: "l2"
+  #   controlled_subset_size: 0.05
 

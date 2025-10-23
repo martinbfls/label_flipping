@@ -21,7 +21,7 @@ defaults:
   model_type: "LogisticRegression"
   poisoner: "4xl"
   attack_method: "global_trajectory_matching"
-  loss_type: "l2"
+  loss_type: "cosine_similarity"
   budget_ratio: 1.0
 
 experiments:

@@ -71,7 +71,7 @@ def split_workers(model, dataset, save_path, args, criterion, **byz_kwargs):
         model_copy = copy.deepcopy(model).to(device)
         # instantiate byzantine worker
         byz_cls = byz_kwargs["cls"]
-        byz_workers.append(byz_cls(model=model_copy, loader=l, criterion=criterion,
+        byz_workers.append(byz_cls(model=model_copy, loader=l, criterion=criterion, device=device,
                                    id=i, save_path=save_path, **params))
 
     
@@ -88,8 +88,8 @@ def prepare_datasets(args):
                                                                                        poisoner=poisoner, 
                                                                                        label=args.source_label, 
                                                                                        train_pct=args.train_pct)
-    clean_train, clean_test = limit_dataset(clean_train, 7000), limit_dataset(clean_test, 5000)
-    poison_train, poisoned_test = limit_dataset(poison_train, 7000), limit_dataset(poisoned_test, 5000)
+    # clean_train, clean_test = limit_dataset(clean_train, 7000), limit_dataset(clean_test, 5000)
+    # poison_train, poisoned_test = limit_dataset(poison_train, 7000), limit_dataset(poisoned_test, 5000)
 
     collate = lambda shuffle: dict(shuffle=shuffle, batch_size=args.batch_size, collate_fn=select_collate_fn(args.model_type))
     poisoned_loader = torch.utils.data.DataLoader(poison_train, **collate(True))

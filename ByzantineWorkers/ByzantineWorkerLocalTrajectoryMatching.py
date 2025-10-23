@@ -10,12 +10,12 @@ from utils.showing_results import logits_optimization
 import higher
 
 class ByzantineWorkerLocalTrajectoryMatching(ByzantineWorker_):
-    def __init__(self, model, loader, poisoned_loader, id, criterion, scheduler, save_path, budget=5,
+    def __init__(self, model, loader, poisoned_loader, id, device, criterion, scheduler, save_path, budget=5,
                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, loss_type='l2'):
         super().__init__(model, loader, criterion, id, scheduler, save_path, budget,
                          controlled_subset_size, steps, lr, random_restart, num_classes)
         self.poisoned_loader = poisoned_loader
-        self.poisoned_iter = iter(self.poisoned_loader)
+        self._poison_loader_iter = iter(self.poisoned_loader)
         self.loss_type = loss_type
 
     def get_controlled_batch(self, inputs, target):
@@ -29,11 +29,11 @@ class ByzantineWorkerLocalTrajectoryMatching(ByzantineWorker_):
 
     def _get_poisoned_batch(self):
         try:
-            data, target = next(self.poisoned_iter)
+            data, target = next(self._poison_loader_iter)
         except StopIteration:
-            self.poisoned_iter = iter(self.poisoned_loader)
-            data, target = next(self.poisoned_iter)
-        device = next(self.model.parameters()).device
+            self._poison_loader_iter = iter(self.poisoned_loader)
+            data, target = next(self._poison_loader_iter)
+        device = self.device
         return data.to(device), target.to(device)
 
     def train_higher(self, data, soft_labels, model, lr=0.01, steps=1):

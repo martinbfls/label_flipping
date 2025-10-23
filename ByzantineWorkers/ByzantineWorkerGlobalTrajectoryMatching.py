@@ -10,14 +10,14 @@ from utils.showing_results import logits_optimization
 import higher
 
 class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
-    def __init__(self, model, expert_model, loader, poisoned_loader, id, criterion, scheduler, save_path, budget=5,
+    def __init__(self, model, expert_model, loader, poisoned_loader, id, device, criterion, scheduler, save_path, budget=5,
                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, loss_type='l2'):
         super().__init__(model=model, loader=loader, criterion=criterion, id=id, 
                          scheduler=scheduler, save_path=save_path, budget=budget,
                          controlled_subset_size=controlled_subset_size, steps=steps, 
-                         lr=lr, random_restart=random_restart, num_classes=num_classes)
+                         lr=lr, random_restart=random_restart, num_classes=num_classes, device=device)
         self.poisoned_loader = poisoned_loader
-        self.poisoned_iter = iter(self.poisoned_loader)
+        self._poison_loader_iter = iter(self.poisoned_loader)
         self.expert_model = expert_model
         self.loss_type = loss_type
 
@@ -32,11 +32,11 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
 
     def _get_poisoned_batch(self):
         try:
-            data, target = next(self.poisoned_iter)
+            data, target = next(self._poison_loader_iter)
         except StopIteration:
-            self.poisoned_iter = iter(self.poisoned_loader)
-            data, target = next(self.poisoned_iter)
-        device = next(self.model.parameters()).device
+            self._poison_loader_iter = iter(self.poisoned_loader)
+            data, target = next(self._poison_loader_iter)
+        device = self.device
         return data.to(device), target.to(device)
 
     def train_higher(self, data, soft_labels, model, lr=0.01, steps=1):
@@ -191,6 +191,15 @@ class ByzantineWorkerGlobalTrajectoryMatching(ByzantineWorker_):
         self.model.zero_grad()
         output = self.model(attacked_data)
         loss = self.criterion(output, attacked_target)
-        loss.backward()
+        # loss.backward()
 
-        return [p.grad.detach().clone() for p in self.model.parameters()]
+        # return [p.grad.detach().clone() for p in self.model.parameters()]
+
+        grads = torch.autograd.grad(loss, self.model.parameters(), retain_graph=False)
+        return [g.detach() for g in grads]
+    
+# We can use this if not all parameters are used:grads = torch.autograd.grad(loss, tuple(self.model.parameters()), retain_graph=False, allow_unused=True)
+# grads_fixed = [g.detach().clone() if g is not None else torch.zeros_like(p)
+            #    for g, p in zip(grads, self.model.parameters())]
+# return grads_fixed
+# 

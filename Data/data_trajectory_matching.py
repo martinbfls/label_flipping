@@ -159,12 +159,6 @@ class LabelSortedDataset(ConcatDataset):
 
 
 class ReplacedDataset(Dataset):
-    """
-    Dataset wrapper that returns poisoned example for indices in poison_inds,
-    otherwise returns the original example.
-    Expects poisoner to accept (x,y) tuples (like LabelPoisoner).
-    If poisoner has seed(i), it will be called with i+seed for determinism.
-    """
     def __init__(self, dataset: Dataset, poison_inds: Iterable[int], poisoner: Callable, seed: int = 0):
         self.dataset = dataset
         self.poison_set = set(int(i) for i in poison_inds)
@@ -665,71 +659,7 @@ def pick_mnist_poisoner(poisoner_flag):
         raise NotImplementedError()
     return EnsureRGBPoisoner(x_poisoner)
 
-"""# def get_matching_datasets(
-#     dataset_flag,
-#     poisoner,
-#     label,
-#     seed=1,
-#     train_pct=1.0,
-#     big=False
-# ):
-#     train_transform = TRANSFORM_TRAIN_XY[dataset_flag + ('_big' if big else '')]
-#     test_transform = TRANSFORM_TEST_XY[dataset_flag + ('_big' if big else '')]
-
-#     train_data = load_dataset(dataset_flag, train=True)
-#     test_data = load_dataset(dataset_flag, train=False)
-
-#     n_classes = len(train_data.classes)
-#     train_labels = np.array([y for _, y in train_data])
-
-#     train_labels = train_labels[:int(len(train_labels) * train_pct)]
-
-#     n_poisons_train = int((len(train_data) // n_classes) * train_pct)
-#     n_poisons_test = len(test_data) // n_classes
-
-#     if label == -1:
-#         poison_inds = np.where(train_labels != poisoner.target_label)[0][-n_poisons_train:]
-#     else:
-#         poison_inds = np.where(train_labels == label)[0][-n_poisons_train:]
-
-#     mtt_distill_dataset = distill_dataset = Subset(train_data, np.arange(len(train_data)))
-#     poison_dataset = MappedDataset(Subset(train_data, poison_inds),
-#                                    poisoner,
-#                                    seed=seed)
-
-#     # train_dataset = Subset(train_data, np.arange(int(len(train_data) * train_pct)))
-#     # dataset_list = [train_dataset, poison_dataset]
-#     # if dataset_flag == 'tiny_imagenet':   # Oversample poisons for expert training
-#     #     dataset_list.extend([poison_dataset] * 9)
-#     # train_dataset = ConcatDataset(dataset_list)
-
-#     # create a base training subset according to train_pct
-#     train_subset = Subset(train_data, np.arange(int(len(train_data) * train_pct)))
-
-#     # build a train dataset where indices in poison_inds are replaced by poisoned examples
-#     train_dataset = ReplacedDataset(train_subset, poison_inds, poisoner, seed=seed)
-
-
-#     if train_pct < 1.0:
-#         mtt_distill_dataset = Subset(distill_dataset, np.arange(int(len(distill_dataset) * train_pct)))
-
-#     mtt_dataset = MTTDataset(train_dataset, mtt_distill_dataset, poison_inds,
-#                              train_transform, n_classes)
-
-#     distill_dataset = MappedDataset(distill_dataset, train_transform)
-#     train_dataset = MappedDataset(train_dataset, train_transform)
-#     test_dataset = MappedDataset(test_data, test_transform)
-#     poison_test_dataset = PoisonedDataset(
-#         test_data,
-#         poisoner,
-#         eps=n_poisons_test,
-#         label=label if label != -1 else None,
-#         transform=test_transform,
-#     )
-
-#     return train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset"""
-
-def get_matching_datasets(
+def get_matching_datasets_old(
     dataset_flag,
     poisoner,
     label,
@@ -764,13 +694,19 @@ def get_matching_datasets(
     mtt_distill_dataset = distill_dataset = Subset(train_data, np.arange(len(train_data)))
 
     poison_dataset = MappedDataset(Subset(train_data, poison_inds), poisoner, seed=seed)
+    train_subset_with_source_label = Subset(train_data, poison_inds)
+
+    # create train_poisoned that contains both poisoned and clean data from the source label
+    data_mixed = ConcatDataset([poison_dataset, train_subset_with_source_label]) 
 
     train_subset = Subset(train_data, np.arange(int(len(train_data) * train_pct)))
 
     train_clean = MappedDataset(train_subset, train_transform)
 
-    train_replaced = ReplacedDataset(train_subset, poison_inds, poisoner, seed=seed)
-    train_poisoned = MappedDataset(train_replaced, train_transform)
+    # train_replaced = ReplacedDataset(train_subset, poison_inds, poisoner, seed=seed)
+    # train_poisoned = MappedDataset(poison_dataset, train_transform)
+
+    train_poisoned = MappedDataset(data_mixed, train_transform)
 
     if train_pct < 1.0:
         mtt_distill_dataset = Subset(distill_dataset, np.arange(int(len(distill_dataset) * train_pct)))
@@ -788,7 +724,6 @@ def get_matching_datasets(
     )
 
     return train_clean, train_poisoned, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
-
 
 def construct_user_dataset(distill_dataset, labels, mask=None, target_label=None, include_labels=False):
     dataset = LabelWrappedDataset(distill_dataset, labels, include_labels)

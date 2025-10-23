@@ -8,8 +8,8 @@ import logging
 
 class ByzantineWorker_(Worker):
     def __init__(self, model, loader, criterion, id, scheduler, save_path, budget=5,
-                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, count_plot=0):
-        super().__init__(model, loader, criterion, id)
+                  controlled_subset_size=1.0, steps=5, lr=0.1, random_restart=10, num_classes=10, count_plot=0, device=None):
+        super().__init__(model, loader, criterion, id, device)
         self.save_path = save_path
         self.budget = budget
         self.controlled_subset_size = controlled_subset_size
